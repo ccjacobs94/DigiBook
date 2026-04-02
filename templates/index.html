@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Audiobook Digitizer</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        h1 { color: #333; }
+        .library { display: flex; flex-direction: column; gap: 10px; }
+        .book { border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+        .btn { padding: 10px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>My Audiobooks</h1>
+    <a href="/new" class="btn">New Audiobook</a>
+    <hr>
+    <div class="library">
+        {% if books %}
+            {% for book in books %}
+                <div class="book">
+                    <strong>{{ book }}</strong>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No audiobooks in library yet.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>New Audiobook</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        .form-group { margin-bottom: 15px; }
+        input[type="text"] { padding: 8px; width: 300px; }
+        .btn { padding: 10px 15px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        .btn:hover { background: #218838; }
+        .back-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #007bff; }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-link">&larr; Back to Library</a>
+    <h1>Start New Audiobook</h1>
+    <form action="/new" method="POST">
+        <div class="form-group">
+            <label for="book_name">Audiobook Name:</label><br>
+            <input type="text" id="book_name" name="book_name" required>
+        </div>
+        <button type="submit" class="btn">Start Ripping</button>
+    </form>
+</body>
+</html>

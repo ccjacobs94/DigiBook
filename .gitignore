@@ -1,0 +1,4 @@
+library/
+temp/
+__pycache__/
+*.log
