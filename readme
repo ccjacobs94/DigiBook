@@ -1,1 +1,48 @@
-This is a project to create a local UI to digitize your audiobooks on disk. 
+# Audiobook Digitizer
+
+This is a project to create a local UI to digitize your audiobooks on disk.
+
+## Installation
+
+This application requires certain system-level dependencies for processing CD audio.
+
+### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt-get update
+sudo apt-get install ffmpeg cdparanoia
+```
+
+### macOS
+
+Using [Homebrew](https://brew.sh/):
+```bash
+brew install ffmpeg cdparanoia
+```
+
+### Windows
+You will need to manually install `ffmpeg` and `cdparanoia` (or equivalent command line CD extraction tools) and ensure they are on your system PATH.
+
+### Python Dependencies
+
+After installing the system tools, install the required python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Running the Application
+
+To start the local web interface, run:
+
+```bash
+python app.py
+```
+
+Then, open your web browser and navigate to `http://127.0.0.1:5000`.
+
+## Features
+- Name a new audiobook
+- Interactively rip one disk at a time
+- Automatically merge ripped disks into a single MP3 file for easy listening
+- View your local library of processed audiobooks
