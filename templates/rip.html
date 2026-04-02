@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ripping: {{ book_name }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        .status { margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px; }
+        .btn-rip { padding: 10px 15px; background: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        .btn-rip:hover { background: #138496; }
+        .btn-done { padding: 10px 15px; background: #ffc107; color: black; border: none; cursor: pointer; border-radius: 5px; }
+        .btn-done:hover { background: #e0a800; }
+        .disks-ripped { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Ripping Audiobook: {{ book_name }}</h1>
+
+    <div class="status">
+        <p>Disks ripped so far: <span class="disks-ripped">{{ current_disk - 1 }}</span></p>
+        <p>Please insert Disk {{ current_disk }} and click the button below.</p>
+    </div>
+
+    <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block; margin-right: 10px;">
+        <input type="hidden" name="action" value="rip_disk">
+        <button type="submit" class="btn-rip">Rip Disk {{ current_disk }}</button>
+    </form>
+
+    <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block;">
+        <input type="hidden" name="action" value="finish">
+        <button type="submit" class="btn-done">Finish & Merge to MP3</button>
+    </form>
+
+    {% if message %}
+        <p style="color: green; margin-top: 20px;">{{ message }}</p>
+    {% endif %}
+    {% if error %}
+        <p style="color: red; margin-top: 20px;">{{ error }}</p>
+    {% endif %}
+</body>
+</html>
