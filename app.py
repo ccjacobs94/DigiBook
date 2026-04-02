@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for
 import os
 import shutil
+import subprocess
+import sys
 from werkzeug.utils import secure_filename
 from ripper import rip_disk, merge_disks
 
@@ -23,6 +25,38 @@ def index():
         if f.endswith('.mp3'):
             books.append(f)
     return render_template('index.html', books=books)
+
+@app.route('/open/<book_name>')
+def open_book(book_name):
+    # The book_name passed is usually something like "My_Book.mp3"
+    # To be safe against directory traversal
+    book_name = secure_filename(book_name)
+    file_path = os.path.abspath(os.path.join(LIBRARY_DIR, book_name))
+
+    if os.path.exists(file_path):
+        try:
+            if sys.platform == "win32":
+                subprocess.run(["explorer", "/select,", file_path])
+            elif sys.platform == "darwin":
+                subprocess.run(["open", "-R", file_path])
+            else:
+                subprocess.run(["xdg-open", os.path.dirname(file_path)])
+        except Exception as e:
+            print(f"Error opening file location: {e}")
+
+    return redirect(url_for('index'))
+
+@app.route('/delete/<book_name>', methods=['POST'])
+def delete_book(book_name):
+    book_name = secure_filename(book_name)
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+
+    return redirect(url_for('index'))
 
 @app.route('/new', methods=['GET', 'POST'])
 def new_book():
