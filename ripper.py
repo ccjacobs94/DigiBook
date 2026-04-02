@@ -12,12 +12,12 @@ def get_cd_drive_path():
     else:
         return None
 
-def rip_disk(output_dir, disk_num):
+def rip_disk(output_dir, disk_num, cd_drive=None):
     """
     Attempts to rip a CD disk using cdparanoia. If no drive is found,
     it falls back to a simulated rip (useful for development/testing).
     """
-    cd_drive = get_cd_drive_path()
+    cd_drive = cd_drive or get_cd_drive_path()
     file_path = os.path.join(output_dir, f"disk_{disk_num}.mp3")
 
     if cd_drive:

@@ -37,7 +37,11 @@ def new_book():
         os.makedirs(book_temp_dir, exist_ok=True)
 
         # Initialize session tracking
-        active_sessions[book_name] = {'current_disk': 1}
+        cd_drive = request.form.get('cd_drive', '').strip()
+        active_sessions[book_name] = {
+            'current_disk': 1,
+            'cd_drive': cd_drive if cd_drive else None
+        }
 
         return redirect(url_for('rip_book', book_name=book_name))
     return render_template('new.html')
@@ -61,7 +65,7 @@ def rip_book(book_name):
         if action == 'rip_disk':
             try:
                 # Rip the disk
-                rip_disk(book_temp_dir, current_disk)
+                rip_disk(book_temp_dir, current_disk, cd_drive=session_data.get('cd_drive'))
                 active_sessions[book_name]['current_disk'] += 1
                 current_disk += 1
                 message = f"Successfully ripped Disk {current_disk - 1}."
