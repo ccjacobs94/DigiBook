@@ -1,8 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
 import shutil
 import subprocess
 import sys
+import tkinter as tk
+from tkinter import filedialog
 from werkzeug.utils import secure_filename
 from ripper import rip_disk, merge_disks
 
@@ -57,6 +59,24 @@ def delete_book(book_name):
             print(f"Error deleting file: {e}")
 
     return redirect(url_for('index'))
+
+@app.route('/select_drive')
+def select_drive():
+    # Hide the main tkinter window
+    root = tk.Tk()
+    root.withdraw()
+    # Force the window to top level
+    root.attributes('-topmost', True)
+
+    # Open directory selection dialog
+    folder_path = filedialog.askdirectory(title="Select CD Drive Directory")
+
+    # Destroy the root to clean up
+    root.destroy()
+
+    if folder_path:
+        return jsonify({"path": folder_path})
+    return jsonify({"path": ""})
 
 @app.route('/new', methods=['GET', 'POST'])
 def new_book():

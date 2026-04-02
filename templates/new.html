@@ -22,9 +22,37 @@
         </div>
         <div class="form-group">
             <label for="cd_drive">CD Drive Path (Optional):</label><br>
-            <input type="text" id="cd_drive" name="cd_drive">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="cd_drive" name="cd_drive">
+                <button type="button" id="browse_btn" class="btn" style="background: #6c757d; padding: 8px 12px;">Browse...</button>
+            </div>
         </div>
         <button type="submit" class="btn">Start Ripping</button>
     </form>
+
+    <script>
+        document.getElementById('browse_btn').addEventListener('click', async () => {
+            const btn = document.getElementById('browse_btn');
+            const input = document.getElementById('cd_drive');
+            btn.disabled = true;
+            btn.innerText = "Browsing...";
+            try {
+                const response = await fetch('/select_drive');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.path) {
+                        input.value = data.path;
+                    }
+                } else {
+                    console.error("Error fetching drive path.");
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Browse...";
+            }
+        });
+    </script>
 </body>
 </html>
