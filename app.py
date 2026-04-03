@@ -22,10 +22,7 @@ active_sessions = {}
 @app.route('/')
 def index():
     # List all MP3 files in the library directory
-    books = []
-    for f in os.listdir(LIBRARY_DIR):
-        if f.endswith('.mp3'):
-            books.append(f)
+    books = [f for f in os.listdir(LIBRARY_DIR) if f.endswith('.mp3')]
     return render_template('index.html', books=books)
 
 @app.route('/open/<book_name>')
