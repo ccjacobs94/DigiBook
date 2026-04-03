@@ -5,10 +5,34 @@ import subprocess
 import sys
 import tkinter as tk
 from tkinter import filedialog
+import requests
 from werkzeug.utils import secure_filename
 from ripper import rip_disk, merge_disks
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, TIT2, TPE1, TPE2, TDRC, APIC, error as MutagenError
 
 app = Flask(__name__)
+
+def fetch_metadata(title):
+    try:
+        resp = requests.get("https://openlibrary.org/search.json", params={'title': title, 'limit': 1}, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get('docs'):
+            doc = data['docs'][0]
+            author = doc.get('author_name', [''])[0] if doc.get('author_name') else ''
+            year = str(doc.get('first_publish_year', ''))
+            cover_i = doc.get('cover_i')
+            cover_url = f"https://covers.openlibrary.org/b/id/{cover_i}-L.jpg" if cover_i else ''
+            return {
+                'title': doc.get('title', title),
+                'author': author,
+                'year': year,
+                'cover_url': cover_url
+            }
+    except Exception as e:
+        print(f"Error fetching metadata: {e}")
+    return {'title': title, 'author': '', 'year': '', 'cover_url': ''}
 LIBRARY_DIR = 'library'
 TEMP_DIR = 'temp'
 
@@ -91,7 +115,8 @@ def new_book():
         cd_drive = request.form.get('cd_drive', '').strip()
         active_sessions[book_name] = {
             'current_disk': 1,
-            'cd_drive': cd_drive if cd_drive else None
+            'cd_drive': cd_drive if cd_drive else None,
+            'original_title': raw_book_name if raw_book_name else "Untitled Audiobook"
         }
 
         return redirect(url_for('rip_book', book_name=book_name))
@@ -131,13 +156,66 @@ def rip_book(book_name):
 
                 # Clean up temp folder
                 shutil.rmtree(book_temp_dir)
+                original_title = active_sessions[book_name].get('original_title', book_name)
                 del active_sessions[book_name]
 
-                return redirect(url_for('index'))
+                return redirect(url_for('edit_metadata', book_name=book_name, original_title=original_title))
             except Exception as e:
                 error = f"Error during merge: {str(e)}"
 
     return render_template('rip.html', book_name=book_name, current_disk=current_disk, message=message, error=error)
+
+@app.route('/metadata/<book_name>', methods=['GET', 'POST'])
+def edit_metadata(book_name):
+    book_name = secure_filename(book_name)
+    output_file = os.path.join(LIBRARY_DIR, f"{book_name}.mp3")
+
+    if not os.path.exists(output_file):
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        title = request.form.get('title', '')
+        author = request.form.get('author', '')
+        narrator = request.form.get('narrator', '')
+        year = request.form.get('year', '')
+        cover_url = request.form.get('cover_url', '')
+
+        try:
+            audio = MP3(output_file, ID3=ID3)
+        except MutagenError:
+            audio = MP3(output_file)
+            audio.add_tags()
+
+        if title:
+            audio.tags.add(TIT2(encoding=3, text=title))
+        if author:
+            audio.tags.add(TPE1(encoding=3, text=author))
+        if narrator:
+            audio.tags.add(TPE2(encoding=3, text=narrator))
+        if year:
+            audio.tags.add(TDRC(encoding=3, text=year))
+
+        if cover_url:
+            try:
+                resp = requests.get(cover_url, timeout=5)
+                resp.raise_for_status()
+                audio.tags.add(APIC(
+                    encoding=3,
+                    mime='image/jpeg',
+                    type=3,
+                    desc='Cover',
+                    data=resp.content
+                ))
+            except Exception as e:
+                print(f"Error fetching cover image: {e}")
+
+        audio.save()
+        return redirect(url_for('index'))
+
+    original_title = request.args.get('original_title', book_name)
+    metadata = fetch_metadata(original_title)
+
+    return render_template('metadata.html', book_name=book_name, metadata=metadata)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
