@@ -188,7 +188,12 @@ def rip_book(book_name):
 @app.route('/metadata/<book_name>', methods=['GET', 'POST'])
 def edit_metadata(book_name):
     book_name = secure_filename(book_name)
-    output_file = os.path.join(LIBRARY_DIR, f"{book_name}.mp3")
+    # The URL may or may not include the .mp3 extension.
+    # The home page passes the full filename including .mp3
+    if not book_name.endswith('.mp3'):
+        book_name += '.mp3'
+
+    output_file = os.path.join(LIBRARY_DIR, book_name)
 
     if not os.path.exists(output_file):
         return redirect(url_for('index'))
