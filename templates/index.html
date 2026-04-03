@@ -43,13 +43,28 @@
             word-break: break-word;
             font-weight: bold;
         }
-        .delete-form {
+        .book-actions {
+            display: flex;
             padding: 10px;
             background: #eee;
             border-top: 1px solid #ddd;
+            gap: 10px;
+        }
+        .delete-form {
+            flex: 1;
         }
         .btn { padding: 10px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; font-size: 1rem; }
         .btn:hover { background: #0056b3; }
+        .btn-edit {
+            background: #28a745;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            flex: 1;
+            text-align: center;
+        }
+        .btn-edit:hover {
+            background: #218838;
+        }
         .btn-delete {
             background: #dc3545;
             padding: 5px 10px;
@@ -71,13 +86,17 @@
                 <div class="book">
                     <a href="/open/{{ book }}" class="book-cover-link" title="Open file location">
                         <div class="book-cover">
-                            🎵
+                            <img src="/cover/{{ book }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <span style="display: none;">🎵</span>
                         </div>
                         <div class="book-title">{{ book }}</div>
                     </a>
-                    <form action="/delete/{{ book }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book }}?');">
-                        <button type="submit" class="btn btn-delete">Delete</button>
-                    </form>
+                    <div class="book-actions">
+                        <a href="/metadata/{{ book }}" class="btn btn-edit">Edit</a>
+                        <form action="/delete/{{ book }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book }}?');">
+                            <button type="submit" class="btn btn-delete">Delete</button>
+                        </form>
+                    </div>
                 </div>
             {% endfor %}
         {% else %}

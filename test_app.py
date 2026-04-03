@@ -105,7 +105,7 @@ def test_rip_book_post_rip_disk(client):
     assert app.active_sessions['Test_Book']['current_disk'] == 2
 
 def test_rip_book_post_finish(client):
-    app.active_sessions['Test_Book'] = {'current_disk': 2, 'cd_drive': '/dev/cdrom'}
+    app.active_sessions['Test_Book'] = {'current_disk': 2, 'cd_drive': '/dev/cdrom', 'original_title': 'Test_Book'}
     book_temp_dir = os.path.join(app.TEMP_DIR, 'Test_Book')
     os.makedirs(book_temp_dir, exist_ok=True)
 
@@ -114,7 +114,7 @@ def test_rip_book_post_finish(client):
 
     rv = client.post('/rip/Test_Book', data={'action': 'finish'})
     assert rv.status_code == 302
-    assert rv.headers['Location'] == '/'
+    assert '/metadata/Test_Book' in rv.headers['Location']
     assert 'Test_Book' not in app.active_sessions
     assert not os.path.exists(book_temp_dir)
 
