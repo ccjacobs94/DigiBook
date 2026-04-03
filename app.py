@@ -49,6 +49,26 @@ def index():
     books = [f for f in os.listdir(LIBRARY_DIR) if f.endswith('.mp3')]
     return render_template('index.html', books=books)
 
+@app.route('/cover/<book_name>')
+def get_cover(book_name):
+    book_name = secure_filename(book_name)
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+
+    if os.path.exists(file_path):
+        try:
+            audio = MP3(file_path)
+            apic_tags = audio.tags.getall('APIC') if audio.tags else []
+            if apic_tags:
+                cover_data = apic_tags[0].data
+                mime_type = apic_tags[0].mime
+                from flask import Response
+                return Response(cover_data, mimetype=mime_type)
+        except Exception as e:
+            print(f"Error reading cover from {book_name}: {e}")
+
+    # Return a 1x1 transparent pixel or empty response if no cover
+    return "", 404
+
 @app.route('/open/<book_name>')
 def open_book(book_name):
     # The book_name passed is usually something like "My_Book.mp3"
@@ -212,8 +232,38 @@ def edit_metadata(book_name):
         audio.save()
         return redirect(url_for('index'))
 
-    original_title = request.args.get('original_title', book_name)
-    metadata = fetch_metadata(original_title)
+    # Attempt to load existing metadata
+    try:
+        audio = MP3(output_file)
+        existing_tags = audio.tags if audio.tags else {}
+
+        # We need a Mutagen ID3 object if MP3, else fallback
+        title = existing_tags.getall('TIT2')[0].text[0] if existing_tags.getall('TIT2') else ''
+        author = existing_tags.getall('TPE1')[0].text[0] if existing_tags.getall('TPE1') else ''
+        narrator = existing_tags.getall('TPE2')[0].text[0] if existing_tags.getall('TPE2') else ''
+        year = existing_tags.getall('TDRC')[0].text[0] if existing_tags.getall('TDRC') else ''
+
+        has_tags = bool(title or author or narrator or year)
+
+    except Exception as e:
+        print(f"Error reading existing tags: {e}")
+        has_tags = False
+        title = author = narrator = year = ''
+
+    if has_tags:
+        # Pre-populate with existing tags
+        metadata = {
+            'title': title,
+            'author': author,
+            'year': year,
+            'narrator': narrator,
+            'cover_url': '' # Hard to pre-populate image URL from raw bytes, leave blank or let user change
+        }
+    else:
+        # Fetch new metadata if no existing tags
+        original_title = request.args.get('original_title', book_name.replace('.mp3', ''))
+        metadata = fetch_metadata(original_title)
+        metadata['narrator'] = ''
 
     return render_template('metadata.html', book_name=book_name, metadata=metadata)
 
