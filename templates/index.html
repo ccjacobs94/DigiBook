@@ -8,18 +8,24 @@
         h1 { color: #333; }
         .library {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
         .book {
             display: flex;
             flex-direction: column;
-            border: 1px solid #ccc;
+            border: none;
             border-radius: 8px;
             overflow: hidden;
             text-align: center;
-            background: #f9f9f9;
+            background: #222;
+            color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .book:hover {
+            transform: scale(1.05);
         }
         .book-cover-link {
             text-decoration: none;
@@ -29,24 +35,48 @@
             flex-direction: column;
         }
         .book-cover {
-            background: #e0e0e0;
-            aspect-ratio: 1;
+            background: linear-gradient(135deg, #2b5876 0%, #4e4376 100%);
+            aspect-ratio: 2/3;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 3rem;
-            color: #888;
+            color: white;
+            position: relative;
+            background-size: cover;
+            background-position: center;
+        }
+        .fallback-text {
+            padding: 10px;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+        .fallback-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .fallback-author {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .book-info {
+            padding: 10px;
+            background: #111;
+            text-align: left;
         }
         .book-title {
-            padding: 10px;
             font-size: 0.9rem;
             word-break: break-word;
             font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .book-author {
+            font-size: 0.8rem;
+            color: #aaa;
         }
         .delete-form {
-            padding: 10px;
-            background: #eee;
-            border-top: 1px solid #ddd;
+            padding: 5px;
+            background: #111;
         }
         .btn { padding: 10px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; font-size: 1rem; }
         .btn:hover { background: #0056b3; }
@@ -63,19 +93,85 @@
 </head>
 <body>
     <h1>My Audiobooks</h1>
-    <a href="/new" class="btn">New Audiobook</a>
+    {% if active_sessions %}
+    <h2>Continue Reading</h2>
+    <div style="display: flex; overflow-x: auto; gap: 15px; padding-bottom: 10px; margin-bottom: 20px;">
+        {% for session in active_sessions %}
+        <div class="book" style="min-width: 150px; max-width: 150px;">
+            <a href="/open/{{ session.book.filename }}" class="book-cover-link" title="Open file location">
+                <div class="book-cover" style="{% if session.book.cover_url %}background-image: url('{{ session.book.cover_url }}');{% endif %}">
+                    {% if not session.book.cover_url %}
+                    <div class="fallback-text">
+                        <div class="fallback-title" style="font-size: 1rem;">{{ session.book.title or session.book.filename }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="background: #e0e0e0; height: 5px; width: 100%;">
+                    <div style="background: #28a745; height: 100%; width: {{ session.progress_percentage }}%;"></div>
+                </div>
+                <div class="book-info" style="padding: 5px; position: relative;">
+                    <div class="book-title" style="font-size: 0.8rem;">{{ session.book.title or session.book.filename }}</div>
+                    <div style="font-size: 0.7rem; color: #ccc; display: flex; justify-content: space-between; align-items: center;">
+                        <span><span class="prog-val">{{ session.progress_percentage | round(1) }}</span>%</span>
+                        <button type="button" class="btn btn-sm add-prog-btn" data-id="{{ session.book.id }}" style="padding: 2px 5px; font-size: 0.7rem; background: #28a745; z-index: 10; position: relative;">+10%</button>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 20px;">
+        <a href="/new" class="btn">New Audiobook (Rip CD)</a>
+        <form action="/upload_library" method="POST" enctype="multipart/form-data" style="margin: 0; padding: 0; display: inline-block; background: #eee; padding: 10px; border-radius: 5px;">
+            <label for="files" style="font-weight: bold; margin-right: 10px;">Upload Library Folder:</label>
+            <input type="file" id="files" name="files" webkitdirectory multiple required style="margin-right: 10px;">
+            <button type="submit" class="btn" style="background: #17a2b8;">Upload</button>
+        </form>
+    </div>
+    <div style="margin-bottom: 20px; display: flex; gap: 15px; align-items: center; background: #eee; padding: 10px; border-radius: 5px;">
+        <label for="sortSelect"><strong>Sort By:</strong></label>
+        <select id="sortSelect" class="btn" style="background: white; color: black; border: 1px solid #ccc;">
+            <option value="added_desc">Recently Added</option>
+            <option value="title_asc">Title (A-Z)</option>
+            <option value="author_asc">Author (A-Z)</option>
+        </select>
+
+        <label for="genreFilter"><strong>Filter Genre:</strong></label>
+        <select id="genreFilter" class="btn" style="background: white; color: black; border: 1px solid #ccc;">
+            <option value="all">All Genres</option>
+            <!-- Genres will be populated by JS -->
+        </select>
+
+        <label for="authorFilter"><strong>Filter Author:</strong></label>
+        <select id="authorFilter" class="btn" style="background: white; color: black; border: 1px solid #ccc;">
+            <option value="all">All Authors</option>
+            <!-- Authors will be populated by JS -->
+        </select>
+    </div>
     <hr>
-    <div class="library">
+    <div class="library" id="libraryGrid">
         {% if books %}
             {% for book in books %}
-                <div class="book">
-                    <a href="/open/{{ book }}" class="book-cover-link" title="Open file location">
-                        <div class="book-cover">
-                            🎵
+                <div class="book" data-title="{{ book.title or book.filename }}" data-author="{{ book.author or '' }}" data-genre="{{ book.genre or '' }}" data-added="{{ book.date_added }}">
+                    <a href="/open/{{ book.filename }}" class="book-cover-link" title="Open file location">
+                        <div class="book-cover" style="{% if book.cover_url %}background-image: url('{{ book.cover_url }}');{% endif %}">
+                            {% if not book.cover_url %}
+                            <div class="fallback-text">
+                                <div class="fallback-title">{{ book.title or book.filename }}</div>
+                                {% if book.author %}
+                                <div class="fallback-author">{{ book.author }}</div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </div>
-                        <div class="book-title">{{ book }}</div>
+                        <div class="book-info">
+                            <div class="book-title">{{ book.title or book.filename }}</div>
+                            <div class="book-author">{{ book.author or 'Unknown Author' }}</div>
+                        </div>
                     </a>
-                    <form action="/delete/{{ book }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book }}?');">
+                    <form action="/delete/{{ book.id }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book.title or book.filename }}?');">
                         <button type="submit" class="btn btn-delete">Delete</button>
                     </form>
                 </div>
@@ -84,5 +180,108 @@
             <p>No audiobooks in library yet.</p>
         {% endif %}
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = document.getElementById('libraryGrid');
+            const books = Array.from(grid.querySelectorAll('.book'));
+            const sortSelect = document.getElementById('sortSelect');
+            const genreFilter = document.getElementById('genreFilter');
+            const authorFilter = document.getElementById('authorFilter');
+
+            // Populate filters
+            const genres = new Set();
+            const authors = new Set();
+            books.forEach(b => {
+                const g = b.dataset.genre;
+                if(g && g !== 'None') genres.add(g);
+                const a = b.dataset.author;
+                if(a && a !== 'None' && a !== '') authors.add(a);
+            });
+
+            genres.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g; opt.textContent = g;
+                genreFilter.appendChild(opt);
+            });
+
+            authors.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a; opt.textContent = a;
+                authorFilter.appendChild(opt);
+            });
+
+            function updateView() {
+                const sortBy = sortSelect.value;
+                const filterG = genreFilter.value;
+                const filterA = authorFilter.value;
+
+                let visibleBooks = books.filter(b => {
+                    const g = b.dataset.genre;
+                    const a = b.dataset.author;
+                    let show = true;
+                    if(filterG !== 'all' && g !== filterG) show = false;
+                    if(filterA !== 'all' && a !== filterA) show = false;
+                    return show;
+                });
+
+                visibleBooks.sort((a, b) => {
+                    if (sortBy === 'title_asc') {
+                        return a.dataset.title.localeCompare(b.dataset.title);
+                    } else if (sortBy === 'author_asc') {
+                        return (a.dataset.author || '').localeCompare(b.dataset.author || '');
+                    } else {
+                        // added_desc
+                        return new Date(b.dataset.added) - new Date(a.dataset.added);
+                    }
+                });
+
+                grid.innerHTML = '';
+                if(visibleBooks.length === 0) {
+                    grid.innerHTML = '<p>No books match your filters.</p>';
+                } else {
+                    visibleBooks.forEach(b => grid.appendChild(b));
+                }
+            }
+
+            sortSelect.addEventListener('change', updateView);
+            genreFilter.addEventListener('change', updateView);
+            authorFilter.addEventListener('change', updateView);
+
+            updateView();
+
+            // Add progress handlers
+            const progBtns = document.querySelectorAll('.add-prog-btn');
+            progBtns.forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation(); // prevent navigation
+
+                    const id = btn.dataset.id;
+                    const bookDiv = btn.closest('.book');
+                    const progValSpan = bookDiv.querySelector('.prog-val');
+                    let currentProg = parseFloat(progValSpan.textContent);
+                    let newProg = Math.min(100, currentProg + 10);
+
+                    try {
+                        const res = await fetch(`/update_progress/${id}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ progress: newProg })
+                        });
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            progValSpan.textContent = data.progress.toFixed(1);
+                            // Update visual bar
+                            const bar = bookDiv.querySelector('div[style*="background: #28a745; height: 100%;"]');
+                            if(bar) bar.style.width = `${data.progress}%`;
+                        }
+                    } catch(err) {
+                        console.error('Error updating progress:', err);
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
