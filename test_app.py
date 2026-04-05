@@ -150,6 +150,46 @@ def test_open_book_error(client):
     assert rv.status_code == 302
     assert rv.headers['Location'] == '/'
 
+def test_auto_rip_success(client):
+    app.active_sessions['Test_Auto_Book'] = {'current_disk': 1, 'cd_drive': '/dev/cdrom'}
+
+    app.check_drive_ready = MagicMock(return_value=True)
+    app.rip_disk = MagicMock()
+    app.eject_drive = MagicMock()
+
+    rv = client.post('/api/auto_rip/Test_Auto_Book')
+    assert rv.status_code == 200
+    assert rv.json['status'] == 'success'
+    assert rv.json['current_disk'] == 2
+    assert app.active_sessions['Test_Auto_Book']['current_disk'] == 2
+
+    app.rip_disk.assert_called_once()
+    app.eject_drive.assert_called_once()
+
+def test_auto_rip_waiting(client):
+    app.active_sessions['Test_Auto_Book'] = {'current_disk': 1, 'cd_drive': '/dev/cdrom'}
+    app.check_drive_ready = MagicMock(return_value=False)
+
+    rv = client.post('/api/auto_rip/Test_Auto_Book')
+    assert rv.status_code == 200
+    assert rv.json['status'] == 'waiting'
+    assert app.active_sessions['Test_Auto_Book']['current_disk'] == 1
+
+def test_auto_rip_error(client):
+    app.active_sessions['Test_Auto_Book_Err'] = {'current_disk': 1, 'cd_drive': '/dev/cdrom'}
+
+    app.check_drive_ready = MagicMock(return_value=True)
+    app.rip_disk = MagicMock(side_effect=Exception("Mock rip error"))
+    app.eject_drive = MagicMock()
+
+    rv = client.post('/api/auto_rip/Test_Auto_Book_Err')
+    assert rv.status_code == 500
+    assert rv.json['status'] == 'error'
+    assert 'Mock rip error' in rv.json['message']
+    assert app.active_sessions['Test_Auto_Book_Err']['current_disk'] == 1 # didn't increment
+
+    app.eject_drive.assert_not_called()
+
 def test_rip_book_post_rip_disk_error(client):
     app.active_sessions['Test_Book_Err'] = {'current_disk': 1, 'cd_drive': '/dev/cdrom'}
     app.rip_disk = MagicMock(side_effect=Exception("Mock rip error"))

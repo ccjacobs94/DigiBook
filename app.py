@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog
 import requests
 from werkzeug.utils import secure_filename
-from ripper import rip_disk, merge_disks
+from ripper import rip_disk, merge_disks, eject_drive, check_drive_ready
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, TPE2, TDRC, APIC, COMM, TXXX, error as MutagenError
 
@@ -189,6 +189,33 @@ def new_book():
 
         return redirect(url_for('rip_book', book_name=book_name))
     return render_template('new.html')
+
+@app.route('/api/auto_rip/<book_name>', methods=['POST'])
+def auto_rip(book_name):
+    book_name = secure_filename(book_name)
+    if book_name not in active_sessions:
+        return jsonify({'status': 'error', 'message': 'Session not found'}), 404
+
+    session_data = active_sessions[book_name]
+    current_disk = session_data['current_disk']
+    cd_drive = session_data.get('cd_drive')
+    book_temp_dir = os.path.join(TEMP_DIR, book_name)
+
+    if not check_drive_ready(cd_drive):
+        return jsonify({'status': 'waiting', 'message': 'Waiting for disk...'})
+
+    try:
+        # Rip the disk
+        rip_disk(book_temp_dir, current_disk, cd_drive=cd_drive)
+        active_sessions[book_name]['current_disk'] += 1
+        new_disk = current_disk + 1
+
+        # Eject the disk after successful rip
+        eject_drive(cd_drive=cd_drive)
+
+        return jsonify({'status': 'success', 'current_disk': new_disk, 'message': f'Successfully ripped Disk {current_disk}.'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/rip/<book_name>', methods=['GET', 'POST'])
 def rip_book(book_name):
