@@ -228,10 +228,23 @@ def new_book():
 
         # Initialize session tracking
         cd_drive = request.form.get('cd_drive', '').strip()
+
+        # Capture metadata if provided by search
+        author = request.form.get('author', '').strip()
+        year = request.form.get('year', '').strip()
+        cover_url = request.form.get('cover_url', '').strip()
+        isbn = request.form.get('isbn', '').strip()
+        description = request.form.get('description', '').strip()
+
         active_sessions[book_name] = {
             'current_disk': 1,
             'cd_drive': cd_drive if cd_drive else None,
-            'original_title': raw_book_name if raw_book_name else "Untitled Audiobook"
+            'original_title': raw_book_name if raw_book_name else "Untitled Audiobook",
+            'author': author,
+            'year': year,
+            'cover_url': cover_url,
+            'isbn': isbn,
+            'description': description
         }
 
         return redirect(url_for('rip_book', book_name=book_name))
@@ -302,7 +315,8 @@ def rip_book(book_name):
             finally:
                 # Clean up temp folder
                 shutil.rmtree(book_temp_dir, ignore_errors=True)
-                active_sessions.pop(book_name, None)
+                # DO NOT pop active_sessions yet, we need it for metadata
+                # active_sessions.pop(book_name, None)
 
     return render_template('rip.html', book_name=book_name, current_disk=current_disk, message=message, error=error)
 
@@ -384,6 +398,19 @@ def edit_metadata(book_name):
         has_tags = False
         title = author = narrator = year = description = isbn = ''
 
+    original_title = request.args.get('original_title', book_name.replace('.mp3', ''))
+
+    # Retrieve pre-filled session data if it exists, and clean up the session
+    session_key = book_name.replace('.mp3', '')
+    session_data = active_sessions.pop(session_key, {})
+
+    # Apply defaults from search if current fields are empty or no tags exist
+    if not has_tags:
+        if not author: author = session_data.get('author', '')
+        if not year: year = session_data.get('year', '')
+        if not description: description = session_data.get('description', '')
+        if not isbn: isbn = session_data.get('isbn', '')
+
     metadata = {
         'title': title,
         'author': author,
@@ -391,10 +418,8 @@ def edit_metadata(book_name):
         'narrator': narrator,
         'description': description,
         'isbn': isbn,
-        'cover_url': '' # Hard to pre-populate image URL from raw bytes, leave blank or let user change
+        'cover_url': session_data.get('cover_url', '') # Prefill from session if available
     }
-
-    original_title = request.args.get('original_title', book_name.replace('.mp3', ''))
 
     return render_template('metadata.html', book_name=book_name, metadata=metadata, original_title=original_title, has_tags=has_tags)
 
