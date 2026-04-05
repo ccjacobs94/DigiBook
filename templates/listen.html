@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Listen to {{ book_name }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #333; text-align: center; word-break: break-word; }
+        .player-container {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            background: #f9f9f9;
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .cover-image {
+            width: 300px;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .no-cover {
+            width: 300px;
+            height: 300px;
+            background: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            color: #888;
+            border-radius: 4px;
+        }
+        audio {
+            width: 100%;
+            outline: none;
+        }
+        .back-link {
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 1.1rem;
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <h1>{{ book_name }}</h1>
+        <img src="/cover/{{ book_name }}" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="no-cover" style="display: none;">🎵</div>
+
+        <audio id="audioPlayer" controls>
+            <source src="/audio/{{ book_name }}" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+
+    <a href="/" class="back-link">← Back to Library</a>
+
+    <script>
+        const audioPlayer = document.getElementById('audioPlayer');
+        const bookName = "{{ book_name }}";
+        const storageKey = `audiobook_position_${bookName}`;
+
+        // Load saved position
+        const savedPosition = localStorage.getItem(storageKey);
+        if (savedPosition) {
+            audioPlayer.currentTime = parseFloat(savedPosition);
+        }
+
+        // Save position periodically and on pause
+        audioPlayer.addEventListener('timeupdate', () => {
+            // Save every 5 seconds to reduce writes, or save exact on pause
+            if (Math.floor(audioPlayer.currentTime) % 5 === 0) {
+                 localStorage.setItem(storageKey, audioPlayer.currentTime);
+            }
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            localStorage.setItem(storageKey, audioPlayer.currentTime);
+        });
+
+        // Clear saved position when finished
+        audioPlayer.addEventListener('ended', () => {
+            localStorage.removeItem(storageKey);
+        });
+    </script>
+</body>
+</html>

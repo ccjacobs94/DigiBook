@@ -16,26 +16,186 @@
 <body>
     <h1>Ripping Audiobook: {{ book_name }}</h1>
 
-    <div class="status">
-        <p>Disks ripped so far: <span class="disks-ripped">{{ current_disk - 1 }}</span></p>
-        <p>Please insert Disk {{ current_disk }} and click the button below.</p>
+    <div style="margin-bottom: 20px;">
+        <label style="font-weight: bold; cursor: pointer;">
+            <input type="checkbox" id="auto_mode_toggle"> Enable Auto-Mode
+        </label>
+        <p style="font-size: 0.9em; color: #555;">Auto-Mode automatically rips when a disk is inserted and ejects when done.</p>
     </div>
 
-    <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block; margin-right: 10px;">
-        <input type="hidden" name="action" value="rip_disk">
-        <button type="submit" class="btn-rip">Rip Disk {{ current_disk }}</button>
-    </form>
+    <div class="status" id="status_container">
+        <p>Disks ripped so far: <span class="disks-ripped" id="disks_ripped_count">{{ current_disk - 1 }}</span></p>
+        <p id="instruction_text">Please insert Disk <span id="current_disk_display">{{ current_disk }}</span> and click the button below.</p>
+    </div>
 
-    <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block;">
-        <input type="hidden" name="action" value="finish">
-        <button type="submit" class="btn-done">Finish & Merge to MP3</button>
-    </form>
+    <div id="manual_controls">
+        <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block; margin-right: 10px;">
+            <input type="hidden" name="action" value="rip_disk">
+            <button type="submit" class="btn-rip" id="btn_rip_manual">Rip Disk <span id="btn_rip_disk_num">{{ current_disk }}</span></button>
+        </form>
+
+        <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block;">
+            <input type="hidden" name="action" value="finish">
+            <button type="submit" class="btn-done">Finish & Merge to MP3</button>
+        </form>
+    </div>
+
+    <div id="auto_controls" style="display: none;">
+        <h2 style="color: #17a2b8;">Waiting for Disk <span id="auto_waiting_disk">{{ current_disk }}</span>...</h2>
+        <p>Auto-Mode is active. Insert the next CD to begin automatically.</p>
+    </div>
+
+    <p id="dynamic_message" style="color: green; margin-top: 20px; display: none;"></p>
+    <p id="dynamic_error" style="color: red; margin-top: 20px; display: none;"></p>
 
     {% if message %}
-        <p style="color: green; margin-top: 20px;">{{ message }}</p>
+        <p id="server_message" style="color: green; margin-top: 20px;">{{ message }}</p>
     {% endif %}
     {% if error %}
-        <p style="color: red; margin-top: 20px;">{{ error }}</p>
+        <p id="server_error" style="color: red; margin-top: 20px;">{{ error }}</p>
     {% endif %}
+
+    <script>
+        const autoModeToggle = document.getElementById('auto_mode_toggle');
+        const manualControls = document.getElementById('manual_controls');
+        const autoControls = document.getElementById('auto_controls');
+        const instructionText = document.getElementById('instruction_text');
+
+        const disksRippedCount = document.getElementById('disks_ripped_count');
+        const currentDiskDisplay = document.getElementById('current_disk_display');
+        const btnRipDiskNum = document.getElementById('btn_rip_disk_num');
+        const autoWaitingDisk = document.getElementById('auto_waiting_disk');
+
+        const dynamicMessage = document.getElementById('dynamic_message');
+        const dynamicError = document.getElementById('dynamic_error');
+        const serverMessage = document.getElementById('server_message');
+        const serverError = document.getElementById('server_error');
+
+        let autoModeTimeout = null;
+        let isAutoModeActive = false;
+        const bookName = "{{ book_name }}";
+
+        // Play a simple beep sound using Web Audio API
+        function playBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 880; // A5
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                setTimeout(() => {
+                    oscillator.stop();
+                    audioCtx.close();
+                }, 300);
+            } catch (e) {
+                console.error("Audio Context not supported or failed to play beep:", e);
+            }
+        }
+
+        function updateDiskCounts(newDiskNum) {
+            disksRippedCount.textContent = newDiskNum - 1;
+            currentDiskDisplay.textContent = newDiskNum;
+            btnRipDiskNum.textContent = newDiskNum;
+            autoWaitingDisk.textContent = newDiskNum;
+        }
+
+        async function pollAutoRip() {
+            if (!isAutoModeActive) return;
+
+            try {
+                const response = await fetch('/api/auto_rip/' + encodeURIComponent(bookName), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Rip successful! Update UI and play beep
+                    playBeep();
+                    updateDiskCounts(data.current_disk);
+                    showMessage(data.message, false);
+                } else if (data.status === 'error') {
+                    // Error occurred, pause auto-mode and show error
+                    throw new Error(data.message);
+                } else if (data.status === 'waiting') {
+                    // Still waiting for disk, do nothing and continue polling
+                }
+            } catch (err) {
+                console.error("Error during auto-rip polling:", err);
+                stopAutoMode();
+                autoModeToggle.checked = false;
+                showMessage("Auto-Mode paused due to error: " + err.message, true);
+                return; // Stop polling on error
+            }
+
+            // Schedule the next poll only after the current request finishes
+            if (isAutoModeActive) {
+                autoModeTimeout = setTimeout(pollAutoRip, 5000);
+            }
+        }
+
+        function startAutoMode() {
+            isAutoModeActive = true;
+            manualControls.style.display = 'none';
+            instructionText.style.display = 'none';
+            autoControls.style.display = 'block';
+
+            // Clear any old messages
+            if (serverMessage) serverMessage.style.display = 'none';
+            if (serverError) serverError.style.display = 'none';
+            dynamicMessage.style.display = 'none';
+            dynamicError.style.display = 'none';
+
+            // Start polling
+            pollAutoRip();
+        }
+
+        function stopAutoMode() {
+            isAutoModeActive = false;
+            manualControls.style.display = 'block';
+            instructionText.style.display = 'block';
+            autoControls.style.display = 'none';
+
+            if (autoModeTimeout) {
+                clearTimeout(autoModeTimeout);
+                autoModeTimeout = null;
+            }
+        }
+
+        function showMessage(msg, isError) {
+            if (serverMessage) serverMessage.style.display = 'none';
+            if (serverError) serverError.style.display = 'none';
+
+            if (isError) {
+                dynamicError.textContent = msg;
+                dynamicError.style.display = 'block';
+                dynamicMessage.style.display = 'none';
+            } else {
+                dynamicMessage.textContent = msg;
+                dynamicMessage.style.display = 'block';
+                dynamicError.style.display = 'none';
+            }
+        }
+
+        autoModeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                startAutoMode();
+            } else {
+                stopAutoMode();
+            }
+        });
+    </script>
 </body>
 </html>

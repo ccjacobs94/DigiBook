@@ -12,6 +12,30 @@ def get_cd_drive_path():
     else:
         return None
 
+def eject_drive(cd_drive=None):
+    """
+    Ejects the CD drive using OS-level commands.
+    """
+    cd_drive = cd_drive or get_cd_drive_path()
+    try:
+        # Currently defaults to eject on Linux.
+        # Fallback to no-op for mock environments if eject command doesn't exist
+        if cd_drive:
+            subprocess.run(['eject', cd_drive], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(f"Ejected drive {cd_drive}")
+        else:
+            print("No CD drive specified to eject.")
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f"Could not eject drive: {e}")
+
+def check_drive_ready(cd_drive=None):
+    """
+    Checks if the CD drive is ready and contains a medium.
+    TODO: Replace with real OS-level check (like 'cdparanoia -Q') for physical hardware support.
+    Since this is mostly simulated, we'll return True to allow ripping to proceed.
+    """
+    return True
+
 def rip_disk(output_dir, disk_num, cd_drive=None):
     """
     Attempts to rip a CD disk using cdparanoia. If no drive is found,
