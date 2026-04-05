@@ -157,6 +157,33 @@ def get_audio(book_name):
         return send_from_directory(LIBRARY_DIR, book_name, mimetype='audio/mpeg')
     return "", 404
 
+@app.route('/api/fix_vbr/<book_name>', methods=['POST'])
+def fix_vbr(book_name):
+    book_name = secure_filename(book_name)
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+
+    if not os.path.exists(file_path):
+        return jsonify({'status': 'error', 'message': 'File not found'}), 404
+
+    temp_file_path = os.path.join(TEMP_DIR, f"temp_fix_{book_name}")
+
+    try:
+        # Run ffmpeg to remux the file and fix the VBR header
+        subprocess.run(['ffmpeg', '-y', '-i', file_path, '-c', 'copy', temp_file_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # Replace the original file with the fixed one
+        shutil.move(temp_file_path, file_path)
+
+        return jsonify({'status': 'success', 'message': 'File repaired successfully'})
+    except subprocess.CalledProcessError as e:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        return jsonify({'status': 'error', 'message': f'Failed to repair file: {e.stderr.decode("utf-8", errors="ignore")}'}), 500
+    except Exception as e:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/listen/<book_name>')
 def listen_book(book_name):
     file_path = os.path.join(LIBRARY_DIR, book_name)

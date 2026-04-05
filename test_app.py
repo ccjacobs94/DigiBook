@@ -95,6 +95,34 @@ def test_delete_book(client):
     assert rv.headers['Location'] == '/'
     assert not os.path.exists(test_file_path)
 
+def test_fix_vbr_success(client, monkeypatch, tmp_path):
+    monkeypatch.setattr('app.LIBRARY_DIR', str(tmp_path))
+    monkeypatch.setattr('app.TEMP_DIR', str(tmp_path))
+
+    test_file = tmp_path / "testbook.mp3"
+    test_file.touch()
+
+    import subprocess
+    import shutil
+    mock_run = MagicMock()
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+    monkeypatch.setattr(shutil, 'move', MagicMock())
+
+    response = client.post('/api/fix_vbr/testbook.mp3')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['status'] == 'success'
+
+    temp_file_path = tmp_path / "temp_fix_testbook.mp3"
+    mock_run.assert_called_once_with(['ffmpeg', '-y', '-i', str(test_file), '-c', 'copy', str(temp_file_path)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def test_fix_vbr_not_found(client, monkeypatch, tmp_path):
+    monkeypatch.setattr('app.LIBRARY_DIR', str(tmp_path))
+    response = client.post('/api/fix_vbr/nonexistent.mp3')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['status'] == 'error'
+
 def test_select_drive(client):
     # We mocked tkinter.filedialog so askdirectory needs a return value
     app.filedialog.askdirectory.return_value = '/mock/dir'
