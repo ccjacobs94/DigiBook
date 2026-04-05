@@ -122,7 +122,11 @@
                             {% endif %}
                         </div>
                     </a>
+                    <div class="book-progress" data-filename="{{ book.filename }}" style="height: 5px; background: #ddd; width: 100%;">
+                        <div class="progress-bar" style="height: 100%; width: 0%; background: #28a745; transition: width 0.3s;"></div>
+                    </div>
                     <div class="book-actions" style="flex-wrap: wrap;">
+                        <a href="/listen/{{ book.filename }}" class="btn btn-edit btn-resume" data-filename="{{ book.filename }}" style="display: none; background-color: #ffc107; color: black; flex-basis: 100%; margin-bottom: 5px;" title="Resume Playback">Resume</a>
                         <a href="/open/{{ book.filename }}" class="btn btn-edit" style="background-color: #17a2b8;" title="Open Dir">Dir</a>
                         <a href="/metadata/{{ book.filename }}" class="btn btn-edit">Edit</a>
                         <form action="/delete/{{ book.filename }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book.title }}?');" style="flex-basis: 100%;">
@@ -135,5 +139,37 @@
             <p>No audiobooks in library yet.</p>
         {% endif %}
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const books = document.querySelectorAll('.book');
+            books.forEach(bookCard => {
+                const progressContainer = bookCard.querySelector('.book-progress');
+                if (!progressContainer) return;
+
+                const filename = progressContainer.getAttribute('data-filename');
+                const positionKey = `audiobook_position_${filename}`;
+                const durationKey = `audiobook_duration_${filename}`;
+
+                const position = localStorage.getItem(positionKey);
+                const duration = localStorage.getItem(durationKey);
+
+                if (position) {
+                    // Show resume button
+                    const resumeBtn = bookCard.querySelector('.btn-resume');
+                    if (resumeBtn) resumeBtn.style.display = 'block';
+
+                    // Update progress bar
+                    if (duration) {
+                        const percent = (parseFloat(position) / parseFloat(duration)) * 100;
+                        const progressBar = progressContainer.querySelector('.progress-bar');
+                        if (progressBar) {
+                            progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+                        }
+                    }
+                }
+            });
+        });
+    </script>
 </body>
 </html>
