@@ -109,11 +109,13 @@ def test_merge_disks_success(monkeypatch, tmp_path):
     output_path = tmp_path / "merged.mp3"
     ripper.merge_disks(str(tmp_path), str(output_path))
 
-    # Expect two calls to subprocess.run: 1 for version check, 1 for merge
-    assert mock_run.call_count == 2
+    # Expect three calls to subprocess.run: 1 for version check, 1 for merge, 1 for VBR re-mux
+    assert mock_run.call_count == 3
+    temp_merged_path = str(tmp_path / "temp_merged.mp3")
     mock_run.assert_has_calls([
         call(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True),
-        call(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(tmp_path / "files.txt"), '-c', 'copy', str(output_path)], check=True)
+        call(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(tmp_path / "files.txt"), '-c', 'copy', temp_merged_path], check=True),
+        call(['ffmpeg', '-y', '-i', temp_merged_path, '-write_xing', '1', '-c', 'copy', str(output_path)], check=True)
     ])
 
     # Check if files.txt is correctly generated
@@ -144,6 +146,20 @@ def test_merge_disks_error(monkeypatch, tmp_path):
 
     def mock_run_impl(*args, **kwargs):
         if 'concat' in args[0]:
+            raise subprocess.CalledProcessError(1, 'cmd')
+        return MagicMock()
+
+    mock_run = MagicMock(side_effect=mock_run_impl)
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+
+    with pytest.raises(Exception, match="Failed to merge files"):
+        ripper.merge_disks(str(tmp_path), str(tmp_path / "merged.mp3"))
+
+def test_merge_disks_error_second_pass(monkeypatch, tmp_path):
+    (tmp_path / "disk_1.mp3").touch()
+
+    def mock_run_impl(*args, **kwargs):
+        if '-write_xing' in args[0]:
             raise subprocess.CalledProcessError(1, 'cmd')
         return MagicMock()
 

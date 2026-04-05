@@ -95,8 +95,18 @@ def merge_disks(temp_dir, output_file_path):
         for audio_file in audio_files:
             f.write(f"file '{audio_file}'\n")
 
+    temp_merged_path = os.path.join(temp_dir, "temp_merged.mp3")
     try:
-        subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', concat_file_path, '-c', 'copy', output_file_path], check=True)
-        print(f"Merged {len(audio_files)} disks into {output_file_path}")
+        # First pass: merge files into a temporary file
+        subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', concat_file_path, '-c', 'copy', temp_merged_path], check=True)
+
+        # Second pass: re-mux the temporary file to generate an accurate Xing/Info VBR header
+        subprocess.run(['ffmpeg', '-y', '-i', temp_merged_path, '-write_xing', '1', '-c', 'copy', output_file_path], check=True)
+
+        print(f"Merged and corrected VBR header for {len(audio_files)} disks into {output_file_path}")
     except subprocess.CalledProcessError as e:
         raise Exception(f"Failed to merge files: {e}")
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_merged_path):
+            os.remove(temp_merged_path)
