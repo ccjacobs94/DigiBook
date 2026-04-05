@@ -9,3 +9,4 @@
 - **Automatically merge ripped disks into a single MP3 file:** Combines the ripped audio from multiple disks into one cohesive MP3 file for easy listening.
 - **View your local library of processed audiobooks:** Interface to browse the collection of audiobooks that have been digitized and merged.
 - **Enhanced Metadata Selection via Open Library:** When adding a book or editing metadata, users can search Open Library in real-time by title. A list of matching results is displayed, allowing the user to select the exact edition they own. This automatically populates accurate metadata (Title, Author, Year, Cover Art, ISBN, and Description), which is embedded into the final MP3 files using mutagen. Users can still manually override these fields.
+- **Sort by Metadata:** Users can now sort their local library of processed audiobooks by metadata (Date Added, Title, Author, Year) in ascending or descending order. This helps navigate larger libraries more easily.

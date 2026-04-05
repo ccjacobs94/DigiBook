@@ -43,6 +43,31 @@ def test_index_with_books(client):
     assert rv.status_code == 200
     assert b'test_book.mp3' in rv.data
 
+def test_index_sort_by_title(client):
+    with open(os.path.join(app.LIBRARY_DIR, 'A_book.mp3'), 'w') as f:
+        f.write('mock content')
+    with open(os.path.join(app.LIBRARY_DIR, 'B_book.mp3'), 'w') as f:
+        f.write('mock content')
+
+    rv = client.get('/?sort_by=title&order=asc')
+    assert rv.status_code == 200
+
+    # We should see A_book before B_book
+    data = rv.data.decode('utf-8')
+    assert data.find('A_book.mp3') < data.find('B_book.mp3')
+
+def test_index_sort_by_title_desc(client):
+    with open(os.path.join(app.LIBRARY_DIR, 'A_book.mp3'), 'w') as f:
+        f.write('mock content')
+    with open(os.path.join(app.LIBRARY_DIR, 'B_book.mp3'), 'w') as f:
+        f.write('mock content')
+
+    rv = client.get('/?sort_by=title&order=desc')
+    assert rv.status_code == 200
+
+    data = rv.data.decode('utf-8')
+    assert data.find('B_book.mp3') < data.find('A_book.mp3')
+
 def test_new_book_get(client):
     rv = client.get('/new')
     assert rv.status_code == 200
