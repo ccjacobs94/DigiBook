@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory
 import os
 import shutil
 import subprocess
@@ -102,6 +102,20 @@ def get_cover(book_name):
 
     # Return a 1x1 transparent pixel or empty response if no cover
     return "", 404
+
+@app.route('/audio/<book_name>')
+def get_audio(book_name):
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    if os.path.exists(file_path):
+        return send_from_directory(LIBRARY_DIR, book_name, mimetype='audio/mpeg')
+    return "", 404
+
+@app.route('/listen/<book_name>')
+def listen_book(book_name):
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    if os.path.exists(file_path):
+        return render_template('listen.html', book_name=book_name)
+    return redirect(url_for('index'))
 
 @app.route('/open/<book_name>')
 def open_book(book_name):

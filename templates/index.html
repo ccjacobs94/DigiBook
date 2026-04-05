@@ -84,16 +84,17 @@
         {% if books %}
             {% for book in books %}
                 <div class="book">
-                    <a href="/open/{{ book }}" class="book-cover-link" title="Open file location">
+                    <a href="/listen/{{ book }}" class="book-cover-link" title="Listen to audiobook">
                         <div class="book-cover">
                             <img src="/cover/{{ book }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             <span style="display: none;">🎵</span>
                         </div>
                         <div class="book-title">{{ book }}</div>
                     </a>
-                    <div class="book-actions">
+                    <div class="book-actions" style="flex-wrap: wrap;">
+                        <a href="/open/{{ book }}" class="btn btn-edit" style="background-color: #17a2b8;" title="Open Dir">Dir</a>
                         <a href="/metadata/{{ book }}" class="btn btn-edit">Edit</a>
-                        <form action="/delete/{{ book }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book }}?');">
+                        <form action="/delete/{{ book }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book }}?');" style="flex-basis: 100%;">
                             <button type="submit" class="btn btn-delete">Delete</button>
                         </form>
                     </div>
