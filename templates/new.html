@@ -10,12 +10,38 @@
         .btn { padding: 10px 15px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; }
         .btn:hover { background: #218838; }
         .back-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #007bff; }
+
+        .search-section { border: 1px solid #ccc; padding: 15px; border-radius: 5px; background: #f9f9f9; margin-bottom: 20px; max-width: 600px;}
+        .search-results { max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid #eee; background: white; }
+        .result-item { display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .result-item:hover { background: #f0f8ff; }
+        .result-thumbnail { width: 50px; height: 75px; background: #ddd; object-fit: cover; }
+        .result-details { flex: 1; }
+        .result-title { font-weight: bold; }
+        .result-author { font-size: 0.9em; color: #555; }
+        .loading { display: none; margin-top: 10px; color: #007bff; font-weight: bold; }
+        .no-results { padding: 10px; color: #d9534f; }
     </style>
 </head>
 <body>
     <a href="/" class="back-link">&larr; Back to Library</a>
     <h1>Start New Audiobook</h1>
+
+    <div class="search-section">
+        <h3>Search & Select Edition</h3>
+        <p style="font-size: 0.9em; color: #666;">Search Open Library to automatically fill metadata fields.</p>
+        <input type="text" id="search_input" placeholder="Search by title..." style="width: 100%; box-sizing: border-box;">
+        <div id="search_loading" class="loading">Searching...</div>
+        <div id="search_results" class="search-results"></div>
+    </div>
+
     <form action="/new" method="POST">
+        <input type="hidden" id="author" name="author" value="">
+        <input type="hidden" id="year" name="year" value="">
+        <input type="hidden" id="cover_url" name="cover_url" value="">
+        <input type="hidden" id="isbn" name="isbn" value="">
+        <input type="hidden" id="description" name="description" value="">
+
         <div class="form-group">
             <label for="book_name">Audiobook Name:</label><br>
             <input type="text" id="book_name" name="book_name" required>
@@ -31,6 +57,113 @@
     </form>
 
     <script>
+        const searchInput = document.getElementById('search_input');
+        const searchResults = document.getElementById('search_results');
+        const searchLoading = document.getElementById('search_loading');
+
+        let searchTimeout = null;
+        const searchCache = new Map();
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            if (searchTimeout) clearTimeout(searchTimeout);
+
+            if (query.length < 2) {
+                searchResults.innerHTML = '';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 400); // 400ms debounce
+        });
+
+        async function performSearch(query) {
+            if (searchCache.has(query)) {
+                renderResults(searchCache.get(query));
+                return;
+            }
+
+            searchLoading.style.display = 'block';
+            searchResults.innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/search_metadata?title=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                searchCache.set(query, data);
+                renderResults(data);
+            } catch (error) {
+                console.error("Error searching:", error);
+                searchResults.innerHTML = '<div class="no-results">Error fetching results.</div>';
+            } finally {
+                searchLoading.style.display = 'none';
+            }
+        }
+
+        function renderResults(results) {
+            searchResults.innerHTML = '';
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="no-results">No results found - enter manually</div>';
+                return;
+            }
+
+            results.forEach(result => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+
+                const img = document.createElement('img');
+                img.className = 'result-thumbnail';
+                if (result.cover_url) {
+                    img.src = result.cover_url;
+                }
+
+                const details = document.createElement('div');
+                details.className = 'result-details';
+
+                const title = document.createElement('div');
+                title.className = 'result-title';
+                title.textContent = result.title;
+
+                const authorYear = document.createElement('div');
+                authorYear.className = 'result-author';
+                authorYear.textContent = `${result.author} ${result.year ? '(' + result.year + ')' : ''}`;
+
+                details.appendChild(title);
+                details.appendChild(authorYear);
+
+                item.appendChild(img);
+                item.appendChild(details);
+
+                item.addEventListener('click', () => selectResult(result));
+                searchResults.appendChild(item);
+            });
+        }
+
+        async function selectResult(result) {
+            document.getElementById('book_name').value = result.title;
+            document.getElementById('author').value = result.author;
+            document.getElementById('year').value = result.year;
+            document.getElementById('isbn').value = result.isbn;
+            document.getElementById('cover_url').value = result.cover_url_large;
+
+            // Optional: visual feedback that a book was selected, e.g. clear search
+            searchInput.value = result.title;
+            searchResults.innerHTML = '';
+
+            if (result.work_id) {
+                try {
+                    const response = await fetch(`/api/work_description?work_id=${encodeURIComponent(result.work_id)}`);
+                    const data = await response.json();
+                    document.getElementById('description').value = data.description || '';
+                } catch (error) {
+                    console.error("Error fetching description:", error);
+                    document.getElementById('description').value = '';
+                }
+            } else {
+                document.getElementById('description').value = '';
+            }
+        }
+
         document.getElementById('browse_btn').addEventListener('click', async () => {
             const btn = document.getElementById('browse_btn');
             const input = document.getElementById('cd_drive');
