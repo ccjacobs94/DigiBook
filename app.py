@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory
 import os
 import shutil
 import subprocess
@@ -9,30 +9,10 @@ import requests
 from werkzeug.utils import secure_filename
 from ripper import rip_disk, merge_disks
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TPE2, TDRC, APIC, error as MutagenError
+from mutagen.id3 import ID3, TIT2, TPE1, TPE2, TDRC, APIC, COMM, TXXX, error as MutagenError
 
 app = Flask(__name__)
 
-def fetch_metadata(title):
-    try:
-        resp = requests.get("https://openlibrary.org/search.json", params={'title': title, 'limit': 1}, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get('docs'):
-            doc = data['docs'][0]
-            author = doc.get('author_name', [''])[0] if doc.get('author_name') else ''
-            year = str(doc.get('first_publish_year', ''))
-            cover_i = doc.get('cover_i')
-            cover_url = f"https://covers.openlibrary.org/b/id/{cover_i}-L.jpg" if cover_i else ''
-            return {
-                'title': doc.get('title', title),
-                'author': author,
-                'year': year,
-                'cover_url': cover_url
-            }
-    except Exception as e:
-        print(f"Error fetching metadata: {e}")
-    return {'title': title, 'author': '', 'year': '', 'cover_url': ''}
 LIBRARY_DIR = 'library'
 TEMP_DIR = 'temp'
 
@@ -42,6 +22,60 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Simple in-memory session manager to track disk number per audiobook
 active_sessions = {}
+
+@app.route('/api/search_metadata')
+def search_metadata():
+    title = request.args.get('title', '')
+    if not title:
+        return jsonify([])
+
+    try:
+        resp = requests.get("https://openlibrary.org/search.json", params={'title': title, 'limit': 10}, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        results = []
+        for doc in data.get('docs', []):
+            author = doc.get('author_name', [''])[0] if doc.get('author_name') else ''
+            year = str(doc.get('first_publish_year', ''))
+            cover_i = doc.get('cover_i')
+            cover_url = f"https://covers.openlibrary.org/b/id/{cover_i}-S.jpg" if cover_i else ''
+            cover_url_large = f"https://covers.openlibrary.org/b/id/{cover_i}-L.jpg" if cover_i else ''
+            isbn = doc.get('isbn', [''])[0] if doc.get('isbn') else ''
+            work_id = doc.get('key', '')
+            results.append({
+                'title': doc.get('title', title),
+                'author': author,
+                'year': year,
+                'cover_url': cover_url,
+                'cover_url_large': cover_url_large,
+                'isbn': isbn,
+                'work_id': work_id
+            })
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error searching metadata: {e}")
+        return jsonify([]), 500
+
+@app.route('/api/work_description')
+def work_description():
+    work_id = request.args.get('work_id', '')
+    if not work_id:
+        return jsonify({'description': ''})
+
+    try:
+        # work_id typically looks like "/works/OL12345W"
+        if not work_id.startswith('/works/'):
+            work_id = f"/works/{work_id}"
+        resp = requests.get(f"https://openlibrary.org{work_id}.json", timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        description = data.get('description', '')
+        if isinstance(description, dict):
+            description = description.get('value', '')
+        return jsonify({'description': description})
+    except Exception as e:
+        print(f"Error fetching description: {e}")
+        return jsonify({'description': ''}), 500
 
 @app.route('/')
 def index():
@@ -68,6 +102,21 @@ def get_cover(book_name):
 
     # Return a 1x1 transparent pixel or empty response if no cover
     return "", 404
+
+@app.route('/audio/<book_name>')
+def get_audio(book_name):
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    from flask import send_from_directory
+    if os.path.exists(file_path):
+        return send_from_directory(LIBRARY_DIR, book_name, mimetype='audio/mpeg')
+    return "", 404
+
+@app.route('/listen/<book_name>')
+def listen_book(book_name):
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    if os.path.exists(file_path):
+        return render_template('listen.html', book_name=book_name)
+    return redirect(url_for('index'))
 
 @app.route('/open/<book_name>')
 def open_book(book_name):
@@ -204,6 +253,8 @@ def edit_metadata(book_name):
         narrator = request.form.get('narrator', '')
         year = request.form.get('year', '')
         cover_url = request.form.get('cover_url', '')
+        description = request.form.get('description', '')
+        isbn = request.form.get('isbn', '')
 
         try:
             audio = MP3(output_file, ID3=ID3)
@@ -219,6 +270,10 @@ def edit_metadata(book_name):
             audio.tags.add(TPE2(encoding=3, text=narrator))
         if year:
             audio.tags.add(TDRC(encoding=3, text=year))
+        if description:
+            audio.tags.add(COMM(encoding=3, lang='eng', desc='Description', text=[description]))
+        if isbn:
+            audio.tags.add(TXXX(encoding=3, desc='ISBN', text=[isbn]))
 
         if cover_url:
             try:
@@ -247,30 +302,29 @@ def edit_metadata(book_name):
         author = existing_tags.getall('TPE1')[0].text[0] if existing_tags.getall('TPE1') else ''
         narrator = existing_tags.getall('TPE2')[0].text[0] if existing_tags.getall('TPE2') else ''
         year = existing_tags.getall('TDRC')[0].text[0] if existing_tags.getall('TDRC') else ''
+        description = existing_tags.getall('COMM:Description:eng')[0].text[0] if existing_tags.getall('COMM:Description:eng') else ''
+        isbn = existing_tags.getall('TXXX:ISBN')[0].text[0] if existing_tags.getall('TXXX:ISBN') else ''
 
-        has_tags = bool(title or author or narrator or year)
+        has_tags = bool(title or author or narrator or year or description or isbn)
 
     except Exception as e:
         print(f"Error reading existing tags: {e}")
         has_tags = False
-        title = author = narrator = year = ''
+        title = author = narrator = year = description = isbn = ''
 
-    if has_tags:
-        # Pre-populate with existing tags
-        metadata = {
-            'title': title,
-            'author': author,
-            'year': year,
-            'narrator': narrator,
-            'cover_url': '' # Hard to pre-populate image URL from raw bytes, leave blank or let user change
-        }
-    else:
-        # Fetch new metadata if no existing tags
-        original_title = request.args.get('original_title', book_name.replace('.mp3', ''))
-        metadata = fetch_metadata(original_title)
-        metadata['narrator'] = ''
+    metadata = {
+        'title': title,
+        'author': author,
+        'year': year,
+        'narrator': narrator,
+        'description': description,
+        'isbn': isbn,
+        'cover_url': '' # Hard to pre-populate image URL from raw bytes, leave blank or let user change
+    }
 
-    return render_template('metadata.html', book_name=book_name, metadata=metadata)
+    original_title = request.args.get('original_title', book_name.replace('.mp3', ''))
+
+    return render_template('metadata.html', book_name=book_name, metadata=metadata, original_title=original_title, has_tags=has_tags)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

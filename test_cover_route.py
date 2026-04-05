@@ -44,3 +44,5 @@ def test_index_route(client):
     response = client.get('/')
     assert response.status_code == 200
     assert b'img src="/cover/testbook.mp3"' in response.data
+    # Assert edit button link is correct
+    assert b'href="/metadata/testbook.mp3"' in response.data
