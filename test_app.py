@@ -234,7 +234,7 @@ def test_rip_book_post_finish_error(client):
     rv = client.post('/rip/Test_Book_Err2', data={'action': 'finish'})
     assert rv.status_code == 200
     assert b'Error during merge: Mock merge error' in rv.data
-    assert 'Test_Book_Err2' in app.active_sessions # didn't clean up
+    assert 'Test_Book_Err2' not in app.active_sessions # cleaned up properly now
 
 def test_select_drive_none(client):
     app.filedialog.askdirectory.return_value = ''

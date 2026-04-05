@@ -291,19 +291,18 @@ def rip_book(book_name):
                 error = str(e)
 
         elif action == 'finish':
+            original_title = active_sessions[book_name].get('original_title', book_name)
             try:
                 # Merge disks and save to library
                 output_file = os.path.join(LIBRARY_DIR, f"{book_name}.mp3")
                 merge_disks(book_temp_dir, output_file)
-
-                # Clean up temp folder
-                shutil.rmtree(book_temp_dir)
-                original_title = active_sessions[book_name].get('original_title', book_name)
-                del active_sessions[book_name]
-
                 return redirect(url_for('edit_metadata', book_name=book_name, original_title=original_title))
             except Exception as e:
                 error = f"Error during merge: {str(e)}"
+            finally:
+                # Clean up temp folder
+                shutil.rmtree(book_temp_dir, ignore_errors=True)
+                active_sessions.pop(book_name, None)
 
     return render_template('rip.html', book_name=book_name, current_disk=current_disk, message=message, error=error)
 
