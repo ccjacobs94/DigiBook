@@ -34,9 +34,13 @@
             <button type="submit" class="btn-rip" id="btn_rip_manual">Rip Disk <span id="btn_rip_disk_num">{{ current_disk }}</span></button>
         </form>
 
-        <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block;">
+        <form action="/rip/{{ book_name }}" method="POST" style="display:inline-block; align-items: center; gap: 10px;">
             <input type="hidden" name="action" value="finish">
-            <button type="submit" class="btn-done">Finish & Merge to MP3</button>
+            <select name="output_format" style="padding: 10px; border-radius: 5px;">
+                <option value=".mp3" selected>Merge to MP3</option>
+                <option value=".m4b">Merge to M4B (Audiobook)</option>
+            </select>
+            <button type="submit" class="btn-done">Finish & Merge</button>
         </form>
     </div>
 

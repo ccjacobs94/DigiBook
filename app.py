@@ -9,6 +9,7 @@ import requests
 from werkzeug.utils import secure_filename
 from ripper import rip_disk, merge_disks, eject_drive, check_drive_ready
 from mutagen.mp3 import MP3
+from mutagen.mp4 import MP4, MP4Cover
 from mutagen.id3 import ID3, TIT2, TPE1, TPE2, TDRC, APIC, COMM, TXXX, error as MutagenError
 
 app = Flask(__name__)
@@ -82,29 +83,40 @@ def index():
     sort_by = request.args.get('sort_by', 'date_added')
     order = request.args.get('order', 'desc')
 
-    # List all MP3 files in the library directory
-    book_files = [f for f in os.listdir(LIBRARY_DIR) if f.endswith('.mp3')]
+    # List all MP3 and M4B files in the library directory
+    book_files = [f for f in os.listdir(LIBRARY_DIR) if f.endswith('.mp3') or f.endswith('.m4b')]
 
     books = []
     for f in book_files:
         file_path = os.path.join(LIBRARY_DIR, f)
 
         # Default metadata
-        title = f.replace('.mp3', '')
+        title = f.replace('.mp3', '').replace('.m4b', '')
         author = ''
         year = ''
         date_added = os.path.getctime(file_path)
 
         try:
-            audio = MP3(file_path)
-            tags = audio.tags if audio.tags else {}
+            if f.endswith('.mp3'):
+                audio = MP3(file_path)
+                tags = audio.tags if audio.tags else {}
 
-            if tags.getall('TIT2'):
-                title = tags.getall('TIT2')[0].text[0]
-            if tags.getall('TPE1'):
-                author = tags.getall('TPE1')[0].text[0]
-            if tags.getall('TDRC'):
-                year = tags.getall('TDRC')[0].text[0]
+                if tags.getall('TIT2'):
+                    title = tags.getall('TIT2')[0].text[0]
+                if tags.getall('TPE1'):
+                    author = tags.getall('TPE1')[0].text[0]
+                if tags.getall('TDRC'):
+                    year = tags.getall('TDRC')[0].text[0]
+            elif f.endswith('.m4b'):
+                audio = MP4(file_path)
+                tags = audio.tags if audio.tags else {}
+
+                if tags.get('\xa9nam'):
+                    title = tags.get('\xa9nam')[0]
+                if tags.get('\xa9ART'):
+                    author = tags.get('\xa9ART')[0]
+                if tags.get('\xa9day'):
+                    year = tags.get('\xa9day')[0]
         except Exception as e:
             pass
 
@@ -137,13 +149,22 @@ def get_cover(book_name):
 
     if os.path.exists(file_path):
         try:
-            audio = MP3(file_path)
-            apic_tags = audio.tags.getall('APIC') if audio.tags else []
-            if apic_tags:
-                cover_data = apic_tags[0].data
-                mime_type = apic_tags[0].mime
-                from flask import Response
-                return Response(cover_data, mimetype=mime_type)
+            if book_name.endswith('.mp3'):
+                audio = MP3(file_path)
+                apic_tags = audio.tags.getall('APIC') if audio.tags else []
+                if apic_tags:
+                    cover_data = apic_tags[0].data
+                    mime_type = apic_tags[0].mime
+                    from flask import Response
+                    return Response(cover_data, mimetype=mime_type)
+            elif book_name.endswith('.m4b'):
+                audio = MP4(file_path)
+                covr_tags = audio.tags.get('covr') if audio.tags else []
+                if covr_tags:
+                    cover_data = covr_tags[0]
+                    mime_type = 'image/jpeg' if covr_tags[0].imageformat == MP4Cover.FORMAT_JPEG else 'image/png'
+                    from flask import Response
+                    return Response(cover_data, mimetype=mime_type)
         except Exception as e:
             print(f"Error reading cover from {book_name}: {e}")
 
@@ -154,8 +175,34 @@ def get_cover(book_name):
 def get_audio(book_name):
     file_path = os.path.join(LIBRARY_DIR, book_name)
     if os.path.exists(file_path):
-        return send_from_directory(LIBRARY_DIR, book_name, mimetype='audio/mpeg')
+        mimetype = 'audio/mp4' if book_name.endswith('.m4b') else 'audio/mpeg'
+        return send_from_directory(LIBRARY_DIR, book_name, mimetype=mimetype)
     return "", 404
+
+@app.route('/api/chapters/<book_name>')
+def get_chapters(book_name):
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    if not os.path.exists(file_path):
+        return jsonify([])
+
+    chapters = []
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_chapters', file_path
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        data = result.stdout
+        if data:
+            import json
+            parsed = json.loads(data)
+            for chap in parsed.get('chapters', []):
+                start_time = float(chap.get('start_time', 0))
+                title = chap.get('tags', {}).get('title', f"Chapter {chap.get('id', 0) + 1}")
+                chapters.append({'start_time': start_time, 'title': title})
+    except Exception as e:
+        print(f"Error reading chapters: {e}")
+
+    return jsonify(chapters)
 
 @app.route('/listen/<book_name>')
 def listen_book(book_name):
@@ -305,11 +352,12 @@ def rip_book(book_name):
 
         elif action == 'finish':
             original_title = active_sessions[book_name].get('original_title', book_name)
+            output_format = request.form.get('output_format', '.mp3')
             try:
                 # Merge disks and save to library
-                output_file = os.path.join(LIBRARY_DIR, f"{book_name}.mp3")
-                merge_disks(book_temp_dir, output_file)
-                return redirect(url_for('edit_metadata', book_name=book_name, original_title=original_title))
+                output_file = os.path.join(LIBRARY_DIR, f"{book_name}{output_format}")
+                merge_disks(book_temp_dir, output_file, output_format=output_format)
+                return redirect(url_for('edit_metadata', book_name=f"{book_name}{output_format}", original_title=original_title))
             except Exception as e:
                 error = f"Error during merge: {str(e)}"
             finally:
@@ -323,12 +371,12 @@ def rip_book(book_name):
 @app.route('/metadata/<book_name>', methods=['GET', 'POST'])
 def edit_metadata(book_name):
     book_name = secure_filename(book_name)
-    # The URL may or may not include the .mp3 extension.
-    # The home page passes the full filename including .mp3
-    if not book_name.endswith('.mp3'):
+    # The URL may or may not include the extension. Default to .mp3 if missing
+    if not book_name.endswith('.mp3') and not book_name.endswith('.m4b'):
         book_name += '.mp3'
 
     output_file = os.path.join(LIBRARY_DIR, book_name)
+    is_m4b = book_name.endswith('.m4b')
 
     if not os.path.exists(output_file):
         return redirect(url_for('index'))
@@ -342,54 +390,90 @@ def edit_metadata(book_name):
         description = request.form.get('description', '')
         isbn = request.form.get('isbn', '')
 
-        try:
-            audio = MP3(output_file, ID3=ID3)
-        except MutagenError:
-            audio = MP3(output_file)
-            audio.add_tags()
+        if is_m4b:
+            audio = MP4(output_file)
+            if audio.tags is None:
+                audio.add_tags()
 
-        if title:
-            audio.tags.add(TIT2(encoding=3, text=title))
-        if author:
-            audio.tags.add(TPE1(encoding=3, text=author))
-        if narrator:
-            audio.tags.add(TPE2(encoding=3, text=narrator))
-        if year:
-            audio.tags.add(TDRC(encoding=3, text=year))
-        if description:
-            audio.tags.add(COMM(encoding=3, lang='eng', desc='Description', text=[description]))
-        if isbn:
-            audio.tags.add(TXXX(encoding=3, desc='ISBN', text=[isbn]))
+            if title: audio.tags['\xa9nam'] = [title]
+            if author: audio.tags['\xa9ART'] = [author]
+            if narrator: audio.tags['\xa9nrt'] = [narrator] # Custom for narrator might vary, standard MP4 is \xa9nrt or just artist
+            if year: audio.tags['\xa9day'] = [year]
+            if description: audio.tags['desc'] = [description]
+            if isbn: audio.tags['----:com.apple.iTunes:ISBN'] = [isbn.encode('utf-8')]
 
-        if cover_url:
+            if cover_url:
+                try:
+                    resp = requests.get(cover_url, timeout=5)
+                    resp.raise_for_status()
+                    image_format = MP4Cover.FORMAT_JPEG if 'jpeg' in resp.headers.get('Content-Type', '').lower() or 'jpg' in cover_url.lower() else MP4Cover.FORMAT_PNG
+                    audio.tags['covr'] = [MP4Cover(resp.content, imageformat=image_format)]
+                except Exception as e:
+                    print(f"Error fetching cover image: {e}")
+
+            audio.save()
+        else:
             try:
-                resp = requests.get(cover_url, timeout=5)
-                resp.raise_for_status()
-                audio.tags.add(APIC(
-                    encoding=3,
-                    mime='image/jpeg',
-                    type=3,
-                    desc='Cover',
-                    data=resp.content
-                ))
-            except Exception as e:
-                print(f"Error fetching cover image: {e}")
+                audio = MP3(output_file, ID3=ID3)
+            except MutagenError:
+                audio = MP3(output_file)
+                audio.add_tags()
 
-        audio.save()
+            if title:
+                audio.tags.add(TIT2(encoding=3, text=title))
+            if author:
+                audio.tags.add(TPE1(encoding=3, text=author))
+            if narrator:
+                audio.tags.add(TPE2(encoding=3, text=narrator))
+            if year:
+                audio.tags.add(TDRC(encoding=3, text=year))
+            if description:
+                audio.tags.add(COMM(encoding=3, lang='eng', desc='Description', text=[description]))
+            if isbn:
+                audio.tags.add(TXXX(encoding=3, desc='ISBN', text=[isbn]))
+
+            if cover_url:
+                try:
+                    resp = requests.get(cover_url, timeout=5)
+                    resp.raise_for_status()
+                    audio.tags.add(APIC(
+                        encoding=3,
+                        mime='image/jpeg',
+                        type=3,
+                        desc='Cover',
+                        data=resp.content
+                    ))
+                except Exception as e:
+                    print(f"Error fetching cover image: {e}")
+
+            audio.save()
+
         return redirect(url_for('index'))
 
     # Attempt to load existing metadata
     try:
-        audio = MP3(output_file)
-        existing_tags = audio.tags if audio.tags else {}
+        if is_m4b:
+            audio = MP4(output_file)
+            existing_tags = audio.tags if audio.tags else {}
 
-        # We need a Mutagen ID3 object if MP3, else fallback
-        title = existing_tags.getall('TIT2')[0].text[0] if existing_tags.getall('TIT2') else ''
-        author = existing_tags.getall('TPE1')[0].text[0] if existing_tags.getall('TPE1') else ''
-        narrator = existing_tags.getall('TPE2')[0].text[0] if existing_tags.getall('TPE2') else ''
-        year = existing_tags.getall('TDRC')[0].text[0] if existing_tags.getall('TDRC') else ''
-        description = existing_tags.getall('COMM:Description:eng')[0].text[0] if existing_tags.getall('COMM:Description:eng') else ''
-        isbn = existing_tags.getall('TXXX:ISBN')[0].text[0] if existing_tags.getall('TXXX:ISBN') else ''
+            title = existing_tags.get('\xa9nam', [''])[0]
+            author = existing_tags.get('\xa9ART', [''])[0]
+            narrator = existing_tags.get('\xa9nrt', [''])[0]
+            year = existing_tags.get('\xa9day', [''])[0]
+            description = existing_tags.get('desc', [''])[0]
+
+            isbn_raw = existing_tags.get('----:com.apple.iTunes:ISBN', [])
+            isbn = isbn_raw[0].decode('utf-8') if isbn_raw else ''
+        else:
+            audio = MP3(output_file)
+            existing_tags = audio.tags if audio.tags else {}
+
+            title = existing_tags.getall('TIT2')[0].text[0] if existing_tags.getall('TIT2') else ''
+            author = existing_tags.getall('TPE1')[0].text[0] if existing_tags.getall('TPE1') else ''
+            narrator = existing_tags.getall('TPE2')[0].text[0] if existing_tags.getall('TPE2') else ''
+            year = existing_tags.getall('TDRC')[0].text[0] if existing_tags.getall('TDRC') else ''
+            description = existing_tags.getall('COMM:Description:eng')[0].text[0] if existing_tags.getall('COMM:Description:eng') else ''
+            isbn = existing_tags.getall('TXXX:ISBN')[0].text[0] if existing_tags.getall('TXXX:ISBN') else ''
 
         has_tags = bool(title or author or narrator or year or description or isbn)
 
@@ -398,10 +482,10 @@ def edit_metadata(book_name):
         has_tags = False
         title = author = narrator = year = description = isbn = ''
 
-    original_title = request.args.get('original_title', book_name.replace('.mp3', ''))
+    original_title = request.args.get('original_title', book_name.replace('.mp3', '').replace('.m4b', ''))
 
     # Retrieve pre-filled session data if it exists, and clean up the session
-    session_key = book_name.replace('.mp3', '')
+    session_key = book_name.replace('.mp3', '').replace('.m4b', '')
     session_data = active_sessions.pop(session_key, {})
 
     # Apply defaults from search if current fields are empty or no tags exist
