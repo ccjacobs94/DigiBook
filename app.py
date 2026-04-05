@@ -79,9 +79,56 @@ def work_description():
 
 @app.route('/')
 def index():
+    sort_by = request.args.get('sort_by', 'date_added')
+    order = request.args.get('order', 'desc')
+
     # List all MP3 files in the library directory
-    books = [f for f in os.listdir(LIBRARY_DIR) if f.endswith('.mp3')]
-    return render_template('index.html', books=books)
+    book_files = [f for f in os.listdir(LIBRARY_DIR) if f.endswith('.mp3')]
+
+    books = []
+    for f in book_files:
+        file_path = os.path.join(LIBRARY_DIR, f)
+
+        # Default metadata
+        title = f.replace('.mp3', '')
+        author = ''
+        year = ''
+        date_added = os.path.getctime(file_path)
+
+        try:
+            audio = MP3(file_path)
+            tags = audio.tags if audio.tags else {}
+
+            if tags.getall('TIT2'):
+                title = tags.getall('TIT2')[0].text[0]
+            if tags.getall('TPE1'):
+                author = tags.getall('TPE1')[0].text[0]
+            if tags.getall('TDRC'):
+                year = tags.getall('TDRC')[0].text[0]
+        except Exception as e:
+            pass
+
+        books.append({
+            'filename': f,
+            'title': title,
+            'author': author,
+            'year': year,
+            'date_added': date_added
+        })
+
+    # Sort books
+    reverse = order == 'desc'
+
+    if sort_by == 'title':
+        books.sort(key=lambda x: x['title'].lower(), reverse=reverse)
+    elif sort_by == 'author':
+        books.sort(key=lambda x: x['author'].lower(), reverse=reverse)
+    elif sort_by == 'year':
+        books.sort(key=lambda x: str(x['year']), reverse=reverse)
+    else: # Default to date_added
+        books.sort(key=lambda x: x['date_added'], reverse=reverse)
+
+    return render_template('index.html', books=books, current_sort=sort_by, current_order=order)
 
 @app.route('/cover/<book_name>')
 def get_cover(book_name):

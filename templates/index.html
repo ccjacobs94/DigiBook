@@ -78,7 +78,30 @@
 </head>
 <body>
     <h1>My Audiobooks</h1>
-    <a href="/new" class="btn">New Audiobook</a>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <a href="/new" class="btn">New Audiobook</a>
+
+        <form action="/" method="GET" style="display: flex; gap: 10px; align-items: center;">
+            <label for="sort_by">Sort by:</label>
+            <select name="sort_by" id="sort_by" onchange="this.form.submit()">
+                <option value="date_added" {% if current_sort == 'date_added' %}selected{% endif %}>Date Added</option>
+                <option value="title" {% if current_sort == 'title' %}selected{% endif %}>Title</option>
+                <option value="author" {% if current_sort == 'author' %}selected{% endif %}>Author</option>
+                <option value="year" {% if current_sort == 'year' %}selected{% endif %}>Year</option>
+            </select>
+
+            <select name="order" id="order" onchange="this.form.submit()">
+                <option value="asc" {% if current_order == 'asc' %}selected{% endif %}>Ascending</option>
+                <option value="desc" {% if current_order == 'desc' %}selected{% endif %}>Descending</option>
+            </select>
+
+            <noscript>
+                <button type="submit" class="btn btn-edit">Sort</button>
+            </noscript>
+        </form>
+    </div>
+
     <hr>
     <div class="library">
         {% if books %}
@@ -86,10 +109,18 @@
                 <div class="book">
                     <a href="/listen/{{ book }}" class="book-cover-link" title="Listen to audiobook">
                         <div class="book-cover">
-                            <img src="/cover/{{ book }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <img src="/cover/{{ book.filename }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             <span style="display: none;">🎵</span>
                         </div>
-                        <div class="book-title">{{ book }}</div>
+                        <div class="book-title">
+                            {{ book.title }}
+                            {% if book.author %}
+                                <div style="font-size: 0.8rem; font-weight: normal; color: #555;">{{ book.author }}</div>
+                            {% endif %}
+                            {% if book.year %}
+                                <div style="font-size: 0.7rem; font-weight: normal; color: #777;">{{ book.year }}</div>
+                            {% endif %}
+                        </div>
                     </a>
                     <div class="book-actions" style="flex-wrap: wrap;">
                         <a href="/open/{{ book }}" class="btn btn-edit" style="background-color: #17a2b8;" title="Open Dir">Dir</a>
