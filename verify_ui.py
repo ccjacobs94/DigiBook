@@ -2,59 +2,46 @@ from playwright.sync_api import sync_playwright
 import time
 import os
 
-def test_ui():
+def test_vbr_warning():
+    os.makedirs('library', exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
+        page = browser.new_page()
 
-        # Generate a dummy MP3 if library is empty to ensure we have a book to view
-        os.system('mkdir -p library')
-        if not os.path.exists('library/verify_test.mp3'):
-            os.system('ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=mono -t 120 -q:a 9 -acodec libmp3lame library/verify_test.mp3 2>/dev/null')
+        # Start server in background
+        import subprocess
+        server = subprocess.Popen(['python', 'app.py'])
+        time.sleep(2) # wait for server to start
 
-        # Visit library
-        print("Visiting library...")
-        page.goto('http://127.0.0.1:5000/')
-        page.wait_for_selector('h1')
+        try:
+            # We need to set a local storage value that implies a long saved position
+            # for a book that has a short duration.
+            # But first we need to open the page to set local storage
+            page.goto("http://127.0.0.1:5000/")
+            # Set up the condition: we need a book_name. Let's use 'testbook'
+            # To do that, let's create a dummy mp3 in library/
+            subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono', '-t', '1', '-q:a', '9', '-acodec', 'libmp3lame', 'library/testbook.mp3'], stderr=subprocess.DEVNULL)
 
-        # Visit Listen page
-        print("Visiting listen page...")
-        page.goto('http://127.0.0.1:5000/listen/verify_test.mp3')
-        page.wait_for_selector('#playbackSpeed')
+            page.goto("http://127.0.0.1:5000/")
 
-        # Drop a bookmark
-        print("Dropping bookmark...")
-        page.click('#addBookmarkBtn')
+            # Now set the local storage before going to listen page
+            page.evaluate("""() => {
+                localStorage.setItem('audiobook_position_testbook.mp3', '3600'); // 1 hour
+            }""")
 
-        # Set sleep timer
-        print("Setting sleep timer...")
-        page.select_option('#sleepTimer', '15')
+            # Go to listen page
+            page.goto("http://127.0.0.1:5000/listen/testbook.mp3")
 
-        # Screenshot listen page
-        print("Taking listen page screenshot...")
-        page.screenshot(path='listen_ui_verify.png', full_page=True)
+            # Wait for the loadedmetadata event which triggers the check
+            # We can wait for the warning to become visible
+            page.wait_for_selector('#vbrWarning', state='visible', timeout=5000)
 
-        # Trigger loadedmetadata by playing briefly
-        print("Playing audio briefly to trigger metadata and position save...")
-        page.evaluate("document.getElementById('audioPlayer').play()")
-        time.sleep(2)
-        page.evaluate("document.getElementById('audioPlayer').pause()")
-        time.sleep(1)
+            # Take screenshot
+            page.screenshot(path="listen_ui_verify.png")
+            print("Screenshot saved to listen_ui_verify.png")
+        finally:
+            server.terminate()
+            browser.close()
 
-        # Visit library again
-        print("Visiting library again...")
-        page.goto('http://127.0.0.1:5000/')
-        page.wait_for_selector('.book')
-
-        # Wait a bit for JS to execute
-        time.sleep(1)
-
-        # Screenshot library page
-        print("Taking library page screenshot...")
-        page.screenshot(path='library_ui_verify.png', full_page=True)
-
-        browser.close()
-
-if __name__ == '__main__':
-    test_ui()
+if __name__ == "__main__":
+    test_vbr_warning()

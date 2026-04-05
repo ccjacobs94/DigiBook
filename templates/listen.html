@@ -60,6 +60,10 @@
             Your browser does not support the audio element.
         </audio>
 
+        <div id="vbrWarning" style="display: none; width: 100%; background: #ffdddd; color: #d8000c; border: 1px solid #d8000c; border-radius: 4px; padding: 10px; margin-top: -10px; font-size: 0.9rem; text-align: center;">
+            <strong>Warning:</strong> Saved position exceeds the detected length of this file. This is often caused by a corrupted Variable Bitrate (VBR) header. Seeking may be inaccurate or impossible until the file is repaired.
+        </div>
+
         <div class="controls-container" style="display: flex; gap: 20px; width: 100%; justify-content: space-around; flex-wrap: wrap;">
             <div class="control-group" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
                 <label for="playbackSpeed">Playback Speed</label>
@@ -127,10 +131,18 @@
             localStorage.removeItem(storageKey);
         });
 
-        // Save duration
+        // Save duration and check for VBR misalignment
         audioPlayer.addEventListener('loadedmetadata', () => {
             if (!isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
                 localStorage.setItem(durationKey, audioPlayer.duration);
+
+                // VBR duration misalignment check
+                if (savedPosition && parseFloat(savedPosition) > audioPlayer.duration) {
+                    const vbrWarning = document.getElementById('vbrWarning');
+                    if (vbrWarning) {
+                        vbrWarning.style.display = 'block';
+                    }
+                }
             }
         });
 
