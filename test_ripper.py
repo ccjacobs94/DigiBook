@@ -109,11 +109,12 @@ def test_merge_disks_success(monkeypatch, tmp_path):
     output_path = tmp_path / "merged.mp3"
     ripper.merge_disks(str(tmp_path), str(output_path))
 
-    # Expect two calls to subprocess.run: 1 for version check, 1 for merge
-    assert mock_run.call_count == 2
+    # Expect three calls to subprocess.run: 1 for version check, 2 for merge passes
+    assert mock_run.call_count == 3
     mock_run.assert_has_calls([
         call(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True),
-        call(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(tmp_path / "files.txt"), '-c', 'copy', str(output_path)], check=True)
+        call(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(tmp_path / "files.txt"), '-c', 'copy', str(tmp_path / "temp_merged.mp3")], check=True),
+        call(['ffmpeg', '-y', '-i', str(tmp_path / "temp_merged.mp3"), '-c', 'copy', str(output_path)], check=True)
     ])
 
     # Check if files.txt is correctly generated
