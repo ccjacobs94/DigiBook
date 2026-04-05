@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/static/manifest.json">
     <title>Listen to {{ book_name }}</title>
     <style>
         body { font-family: sans-serif; margin: 2rem; display: flex; flex-direction: column; align-items: center; }
@@ -19,15 +21,19 @@
             gap: 20px;
         }
         .cover-image {
-            width: 300px;
-            height: 300px;
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            aspect-ratio: 1;
             object-fit: cover;
             border-radius: 4px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         .no-cover {
-            width: 300px;
-            height: 300px;
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            aspect-ratio: 1;
             background: #e0e0e0;
             display: flex;
             align-items: center;
@@ -47,6 +53,22 @@
             font-size: 1.1rem;
         }
         .back-link:hover { text-decoration: underline; }
+
+        .controls-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 360px) {
+            body { margin: 1rem; }
+            .player-container { padding: 10px; gap: 15px; }
+            .controls-container { flex-direction: column; align-items: stretch; gap: 15px; }
+            .control-group { width: 100%; }
+            .control-group select { width: 100%; padding: 8px; font-size: 1rem; }
+        }
     </style>
 </head>
 <body>
@@ -60,7 +82,7 @@
             Your browser does not support the audio element.
         </audio>
 
-        <div class="controls-container" style="display: flex; gap: 20px; width: 100%; justify-content: space-around; flex-wrap: wrap;">
+        <div class="controls-container">
             <div class="control-group" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
                 <label for="playbackSpeed">Playback Speed</label>
                 <select id="playbackSpeed">
@@ -107,33 +129,71 @@
     <a href="/" class="back-link">← Back to Library</a>
 
     <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+
         const audioPlayer = document.getElementById('audioPlayer');
         const bookName = "{{ book_name }}";
-        const storageKey = `audiobook_position_${bookName}`;
         const durationKey = `audiobook_duration_${bookName}`;
         const bookmarksKey = `audiobook_bookmarks_${bookName}`;
 
-        // Load saved position
-        const savedPosition = localStorage.getItem(storageKey);
-        if (savedPosition) {
-            audioPlayer.currentTime = parseFloat(savedPosition);
+        // Load saved position from API
+        async function loadPosition() {
+            try {
+                const response = await fetch(`/api/progress/${encodeURIComponent(bookName)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.position && data.position > 0) {
+                        audioPlayer.currentTime = data.position;
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading position:", error);
+            }
         }
 
+        loadPosition();
+
         // Save position periodically and on pause
-        audioPlayer.addEventListener('timeupdate', () => {
-            // Save every 5 seconds to reduce writes, or save exact on pause
-            if (Math.floor(audioPlayer.currentTime) % 5 === 0) {
-                 localStorage.setItem(storageKey, audioPlayer.currentTime);
+        async function savePosition(position) {
+            try {
+                await fetch(`/api/progress/${encodeURIComponent(bookName)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ position: position })
+                });
+            } catch (error) {
+                console.error("Error saving position:", error);
             }
-        });
+        }
+
+        function scheduleSave() {
+            setTimeout(() => {
+                if (!audioPlayer.paused) {
+                    savePosition(audioPlayer.currentTime);
+                }
+                scheduleSave();
+            }, 10000);
+        }
+
+        scheduleSave();
 
         audioPlayer.addEventListener('pause', () => {
-            localStorage.setItem(storageKey, audioPlayer.currentTime);
+            savePosition(audioPlayer.currentTime);
         });
 
         // Clear saved position when finished
         audioPlayer.addEventListener('ended', () => {
-            localStorage.removeItem(storageKey);
+            savePosition(0);
         });
 
         // Save duration

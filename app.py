@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import tkinter as tk
+import sqlite3
 from tkinter import filedialog
 import requests
 from werkzeug.utils import secure_filename
@@ -23,6 +24,74 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Simple in-memory session manager to track disk number per audiobook
 active_sessions = {}
+
+def init_db():
+    conn = sqlite3.connect('metadata.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS progress (
+            book_name TEXT PRIMARY KEY,
+            position REAL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+
+def get_db_connection():
+    conn = sqlite3.connect('metadata.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+@app.route('/api/progress/<book_name>', methods=['GET'])
+def get_progress(book_name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT position FROM progress WHERE book_name = ?', (book_name,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return jsonify({'position': row['position']})
+    return jsonify({'position': 0})
+
+@app.route('/api/progress/<book_name>', methods=['POST'])
+def save_progress(book_name):
+    try:
+        data = request.get_json()
+        position = data.get('position', 0)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO progress (book_name, position)
+            VALUES (?, ?)
+            ON CONFLICT(book_name) DO UPDATE SET position=excluded.position
+        ''', (book_name, position))
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        print(f"Error saving progress: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/progress_all', methods=['GET'])
+def get_all_progress():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT book_name, position FROM progress')
+    rows = cursor.fetchall()
+    conn.close()
+
+    progress_dict = {row['book_name']: row['position'] for row in rows}
+    return jsonify(progress_dict)
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('.', 'sw.js', mimetype='application/javascript')
+
 
 @app.route('/api/search_metadata')
 def search_metadata():
