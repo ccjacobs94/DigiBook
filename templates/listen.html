@@ -84,6 +84,15 @@
             </div>
         </div>
 
+        <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none;" id="chaptersContainer">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Chapters</h3>
+            </div>
+            <ul id="chaptersList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
+                <!-- Chapters will be populated here -->
+            </ul>
+        </div>
+
         <div class="bookmarks-container" style="width: 100%; margin-top: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>Bookmarks</h3>
@@ -257,6 +266,47 @@
 
         // Initialize bookmarks
         renderBookmarks();
+
+        // Load Chapters
+        async function loadChapters() {
+            try {
+                const response = await fetch(`/api/chapters/${encodeURIComponent(bookName)}`);
+                const chapters = await response.json();
+
+                if (chapters.length > 0) {
+                    const chaptersContainer = document.getElementById('chaptersContainer');
+                    const chaptersList = document.getElementById('chaptersList');
+                    chaptersContainer.style.display = 'block';
+
+                    chapters.forEach((chap) => {
+                        const li = document.createElement('li');
+                        li.style.display = 'flex';
+                        li.style.justifyContent = 'space-between';
+                        li.style.alignItems = 'center';
+                        li.style.padding = '5px 0';
+                        li.style.borderBottom = '1px solid #eee';
+
+                        const link = document.createElement('a');
+                        link.href = "#";
+                        link.textContent = `${formatTime(chap.start_time)} - ${chap.title}`;
+                        link.style.color = '#007bff';
+                        link.style.textDecoration = 'none';
+                        link.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            audioPlayer.currentTime = chap.start_time;
+                            audioPlayer.play();
+                        });
+
+                        li.appendChild(link);
+                        chaptersList.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                console.error("Error loading chapters:", err);
+            }
+        }
+
+        loadChapters();
 
     </script>
 </body>

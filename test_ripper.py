@@ -103,18 +103,29 @@ def test_merge_disks_success(monkeypatch, tmp_path):
     (tmp_path / "disk_2.mp3").touch()
     (tmp_path / "disk_1.mp3").touch()
 
-    mock_run = MagicMock()
+    def mock_run_impl(*args, **kwargs):
+        if 'ffprobe' in args[0]:
+            # Mock ffprobe to return 1.0 second duration
+            m = MagicMock()
+            m.stdout = "1.0\n"
+            return m
+        return MagicMock()
+
+    mock_run = MagicMock(side_effect=mock_run_impl)
     monkeypatch.setattr(subprocess, 'run', mock_run)
 
     output_path = tmp_path / "merged.mp3"
     ripper.merge_disks(str(tmp_path), str(output_path))
 
-    # Expect three calls to subprocess.run: 1 for version check, 1 for merge, 1 for VBR re-mux
-    assert mock_run.call_count == 3
+    # Expect 5 calls to subprocess.run: 1 for version check, 2 for ffprobe, 1 for merge, 1 for VBR re-mux
+    assert mock_run.call_count == 5
     temp_merged_path = str(tmp_path / "temp_merged.mp3")
+    metadata_path = str(tmp_path / "metadata.txt")
     mock_run.assert_has_calls([
         call(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True),
-        call(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(tmp_path / "files.txt"), '-c', 'copy', temp_merged_path], check=True),
+        call(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(tmp_path / "disk_1.mp3")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True),
+        call(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(tmp_path / "disk_2.mp3")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True),
+        call(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(tmp_path / "files.txt"), '-i', metadata_path, '-map_metadata', '1', '-map', '0:a', '-c:a', 'copy', temp_merged_path], check=True),
         call(['ffmpeg', '-y', '-i', temp_merged_path, '-write_xing', '1', '-c', 'copy', str(output_path)], check=True)
     ])
 
@@ -124,6 +135,36 @@ def test_merge_disks_success(monkeypatch, tmp_path):
     assert "file 'disk_1.mp3'" in content
     assert "file 'disk_2.mp3'" in content
     assert content.index("disk_1.mp3") < content.index("disk_2.mp3")
+
+    # Check if metadata.txt is correctly generated
+    with open(metadata_path, "r") as f:
+        meta_content = f.read()
+    assert ";FFMETADATA1" in meta_content
+    assert "title=Disk 1" in meta_content
+    assert "title=Disk 2" in meta_content
+
+def test_merge_disks_m4b_success(monkeypatch, tmp_path):
+    # Setup tmp dir with fake mp3s
+    (tmp_path / "disk_2.mp3").touch()
+    (tmp_path / "disk_1.mp3").touch()
+
+    def mock_run_impl(*args, **kwargs):
+        if 'ffprobe' in args[0]:
+            m = MagicMock()
+            m.stdout = "1.0\n"
+            return m
+        return MagicMock()
+
+    mock_run = MagicMock(side_effect=mock_run_impl)
+    monkeypatch.setattr(subprocess, 'run', mock_run)
+
+    output_path = tmp_path / "merged.m4b"
+    ripper.merge_disks(str(tmp_path), str(output_path), output_format=".m4b")
+
+    temp_merged_path = str(tmp_path / "temp_merged.mp3")
+    metadata_path = str(tmp_path / "metadata.txt")
+
+    mock_run.assert_any_call(['ffmpeg', '-y', '-i', temp_merged_path, '-c:a', 'aac', str(output_path)], check=True)
 
 def test_merge_disks_no_ffmpeg(monkeypatch, tmp_path):
     mock_run = MagicMock(side_effect=FileNotFoundError("mock not found"))
@@ -145,6 +186,10 @@ def test_merge_disks_error(monkeypatch, tmp_path):
     (tmp_path / "disk_1.mp3").touch()
 
     def mock_run_impl(*args, **kwargs):
+        if 'ffprobe' in args[0]:
+            m = MagicMock()
+            m.stdout = "1.0\n"
+            return m
         if 'concat' in args[0]:
             raise subprocess.CalledProcessError(1, 'cmd')
         return MagicMock()
@@ -159,6 +204,10 @@ def test_merge_disks_error_second_pass(monkeypatch, tmp_path):
     (tmp_path / "disk_1.mp3").touch()
 
     def mock_run_impl(*args, **kwargs):
+        if 'ffprobe' in args[0]:
+            m = MagicMock()
+            m.stdout = "1.0\n"
+            return m
         if '-write_xing' in args[0]:
             raise subprocess.CalledProcessError(1, 'cmd')
         return MagicMock()
