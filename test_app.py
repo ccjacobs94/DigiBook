@@ -140,7 +140,7 @@ def test_rip_book_post_finish(client):
     rv = client.post('/rip/Test_Book', data={'action': 'finish'})
     assert rv.status_code == 302
     assert '/metadata/Test_Book' in rv.headers['Location']
-    assert 'Test_Book' not in app.active_sessions
+    assert 'Test_Book' in app.active_sessions  # metadata session is preserved now
     assert not os.path.exists(book_temp_dir)
 
 def test_new_book_empty_name(client):
@@ -234,7 +234,7 @@ def test_rip_book_post_finish_error(client):
     rv = client.post('/rip/Test_Book_Err2', data={'action': 'finish'})
     assert rv.status_code == 200
     assert b'Error during merge: Mock merge error' in rv.data
-    assert 'Test_Book_Err2' not in app.active_sessions # cleaned up properly now
+    assert 'Test_Book_Err2' in app.active_sessions # session is preserved now even on error since we wait to pop in metadata
 
 def test_select_drive_none(client):
     app.filedialog.askdirectory.return_value = ''
