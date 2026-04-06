@@ -425,6 +425,87 @@
             bookmarksContainer.style.display = bookmarksContainer.style.display === 'none' ? 'block' : 'none';
         });
 
+        // MediaSession API Integration
+        async function setupMediaSession() {
+            if ('mediaSession' in navigator) {
+                try {
+                    const response = await fetch(`/api/metadata/${encodeURIComponent(bookName)}`);
+                    let metadata = {};
+                    if (response.ok) {
+                        metadata = await response.json();
+                    }
+
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: metadata.title || bookName,
+                        artist: metadata.author || 'Unknown Author',
+                        album: 'Audiobooks',
+                        artwork: [
+                            { src: `/cover/${encodeURIComponent(bookName)}`, sizes: '512x512', type: 'image/jpeg' },
+                            { src: `/cover/${encodeURIComponent(bookName)}`, sizes: '512x512', type: 'image/png' }
+                        ]
+                    });
+
+                    navigator.mediaSession.setActionHandler('play', () => audioPlayer.play());
+                    navigator.mediaSession.setActionHandler('pause', () => audioPlayer.pause());
+                    navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+                        const skipTime = details.seekOffset || 15;
+                        audioPlayer.currentTime = Math.max(audioPlayer.currentTime - skipTime, 0);
+                    });
+                    navigator.mediaSession.setActionHandler('seekforward', (details) => {
+                        const skipTime = details.seekOffset || 15;
+                        audioPlayer.currentTime = Math.min(audioPlayer.currentTime + skipTime, audioPlayer.duration);
+                    });
+                    navigator.mediaSession.setActionHandler('seekto', (details) => {
+                        if (details.fastSeek && 'fastSeek' in audioPlayer) {
+                          audioPlayer.fastSeek(details.seekTime);
+                          return;
+                        }
+                        audioPlayer.currentTime = details.seekTime;
+                    });
+                    navigator.mediaSession.setActionHandler('stop', () => {
+                        audioPlayer.pause();
+                        audioPlayer.currentTime = 0;
+                    });
+
+                } catch (error) {
+                    console.error("Error setting up MediaSession:", error);
+                }
+            }
+        }
+
+        setupMediaSession();
+
+        function updatePositionState() {
+            if ('mediaSession' in navigator && !isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
+                navigator.mediaSession.setPositionState({
+                    duration: audioPlayer.duration,
+                    playbackRate: audioPlayer.playbackRate,
+                    position: audioPlayer.currentTime
+                });
+            }
+        }
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            progressBar.value = audioPlayer.currentTime;
+            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+            // Throttle position updates a bit if needed, but updating on timeupdate keeps it in sync
+            // We'll update it when paused/played and on seek to be efficient.
+        });
+
+        audioPlayer.addEventListener('play', () => {
+            playPauseBtn.textContent = '⏸';
+            updatePositionState();
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playPauseBtn.textContent = '▶';
+            updatePositionState();
+        });
+
+        audioPlayer.addEventListener('ratechange', () => {
+            updatePositionState();
+        });
+
         // Custom Player Controls Logic
         const playPauseBtn = document.getElementById('playPauseBtn');
         const skipBackBtn = document.getElementById('skipBackBtn');
@@ -441,35 +522,29 @@
             }
         });
 
-        audioPlayer.addEventListener('play', () => {
-            playPauseBtn.textContent = '⏸';
-        });
-
-        audioPlayer.addEventListener('pause', () => {
-            playPauseBtn.textContent = '▶';
-        });
-
         skipBackBtn.addEventListener('click', () => {
             audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 15);
+            updatePositionState();
         });
 
         skipForwardBtn.addEventListener('click', () => {
             audioPlayer.currentTime = Math.min(audioPlayer.duration, audioPlayer.currentTime + 15);
+            updatePositionState();
         });
 
         audioPlayer.addEventListener('loadedmetadata', () => {
             progressBar.max = audioPlayer.duration;
             durationDisplay.textContent = formatTime(audioPlayer.duration);
-        });
-
-        audioPlayer.addEventListener('timeupdate', () => {
-            progressBar.value = audioPlayer.currentTime;
-            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+            updatePositionState();
         });
 
         progressBar.addEventListener('input', () => {
             audioPlayer.currentTime = progressBar.value;
             currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+        });
+
+        progressBar.addEventListener('change', () => {
+            updatePositionState();
         });
 
         const chaptersToggleBtn = document.getElementById('chaptersToggleBtn');
