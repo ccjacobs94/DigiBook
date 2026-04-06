@@ -330,6 +330,60 @@ def select_drive():
         return jsonify({"path": folder_path})
     return jsonify({"path": ""})
 
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    raw_book_name = request.form.get('book_name', '').strip()
+    book_name = secure_filename(raw_book_name)
+    if not book_name:
+        book_name = "Untitled_Audiobook"
+
+    files = request.files.getlist('files')
+    if not files or all(f.filename == '' for f in files):
+        return jsonify({'status': 'error', 'message': 'No files uploaded'}), 400
+
+    book_temp_dir = os.path.join(TEMP_DIR, book_name)
+    os.makedirs(book_temp_dir, exist_ok=True)
+
+    saved_files = []
+    for file in files:
+        if file and file.filename.lower().endswith(('.mp3', '.m4a', '.m4b')):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(book_temp_dir, filename)
+            file.save(file_path)
+            saved_files.append(filename)
+
+    if not saved_files:
+        return jsonify({'status': 'error', 'message': 'No valid audio files uploaded'}), 400
+
+    author = request.form.get('author', '').strip()
+    year = request.form.get('year', '').strip()
+    cover_url = request.form.get('cover_url', '').strip()
+    isbn = request.form.get('isbn', '').strip()
+    description = request.form.get('description', '').strip()
+
+    active_sessions[book_name] = {
+        'current_disk': 1,
+        'original_title': raw_book_name,
+        'author': author,
+        'year': year,
+        'cover_url': cover_url,
+        'isbn': isbn,
+        'description': description
+    }
+
+    # We will trigger the merge here
+    try:
+        output_format = request.form.get('output_format', '.mp3')
+        output_file = os.path.join(LIBRARY_DIR, f"{book_name}{output_format}")
+        merge_disks(book_temp_dir, output_file, output_format=output_format)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f"Error during merge: {str(e)}"}), 500
+    finally:
+        shutil.rmtree(book_temp_dir, ignore_errors=True)
+
+    redirect_url = url_for('edit_metadata', book_name=f"{book_name}{output_format}", original_title=raw_book_name)
+    return jsonify({'status': 'success', 'redirect_url': redirect_url})
+
 @app.route('/new', methods=['GET', 'POST'])
 def new_book():
     if request.method == 'POST':
