@@ -151,6 +151,11 @@
         <img src="/cover/{{ book_name }}" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
         <div class="no-cover" style="display: none;">🎵</div>
 
+        <div id="vbrWarning" style="display: none; width: 100%; background: #fff3cd; color: #856404; padding: 10px; border: 1px solid #ffeeba; border-radius: 4px; text-align: center; margin-bottom: 10px;">
+            ⚠️ Duration mismatch detected. This file may have incorrect VBR headers.
+            <button id="fixVbrBtn" style="margin-top: 5px; padding: 5px 10px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer;">Repair File</button>
+        </div>
+
         <audio id="audioPlayer">
             <source src="/audio/{{ book_name }}" type="audio/mpeg">
             Your browser does not support the audio element.
@@ -289,11 +294,50 @@
         });
 
         // Save duration
-        audioPlayer.addEventListener('loadedmetadata', () => {
+        audioPlayer.addEventListener('loadedmetadata', async () => {
             if (!isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
                 localStorage.setItem(durationKey, audioPlayer.duration);
+
+                // VBR Check
+                try {
+                    const response = await fetch(`/api/progress/${encodeURIComponent(bookName)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.position && data.position > audioPlayer.duration) {
+                            document.getElementById('vbrWarning').style.display = 'block';
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error checking for VBR mismatch:", e);
+                }
             }
         });
+
+        const fixVbrBtn = document.getElementById('fixVbrBtn');
+        if (fixVbrBtn) {
+            fixVbrBtn.addEventListener('click', async () => {
+                fixVbrBtn.disabled = true;
+                fixVbrBtn.textContent = 'Repairing... (this may take a minute)';
+                try {
+                    const response = await fetch(`/api/fix_vbr/${encodeURIComponent(bookName)}`, {
+                        method: 'POST'
+                    });
+                    if (response.ok) {
+                        alert('File repaired successfully. The page will now reload.');
+                        location.reload();
+                    } else {
+                        const data = await response.json();
+                        alert('Error repairing file: ' + (data.message || 'Unknown error'));
+                        fixVbrBtn.disabled = false;
+                        fixVbrBtn.textContent = 'Repair File';
+                    }
+                } catch (e) {
+                    alert('Network error repairing file.');
+                    fixVbrBtn.disabled = false;
+                    fixVbrBtn.textContent = 'Repair File';
+                }
+            });
+        }
 
         // Playback Speed
         const playbackSpeedSelect = document.getElementById('playbackSpeed');

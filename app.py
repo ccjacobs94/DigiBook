@@ -276,6 +276,30 @@ def get_chapters(book_name):
 
     return jsonify(chapters)
 
+@app.route('/api/fix_vbr/<book_name>', methods=['POST'])
+def fix_vbr(book_name):
+    if not book_name.endswith('.mp3'):
+        return jsonify({'status': 'error', 'message': 'Only MP3 files support VBR repair'}), 400
+
+    file_path = os.path.join(LIBRARY_DIR, book_name)
+    if not os.path.exists(file_path):
+        return jsonify({'status': 'error', 'message': 'File not found'}), 404
+
+    temp_path = os.path.join(TEMP_DIR, f"temp_{book_name}")
+    try:
+        # Run ffmpeg to rewrite Xing/VBR headers
+        subprocess.run([
+            'ffmpeg', '-y', '-i', file_path, '-write_xing', '1', '-c', 'copy', temp_path
+        ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # Replace original file
+        shutil.move(temp_path, file_path)
+        return jsonify({'status': 'success', 'message': 'VBR header fixed.'})
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/listen/<book_name>')
 def listen_book(book_name):
     file_path = os.path.join(LIBRARY_DIR, book_name)
