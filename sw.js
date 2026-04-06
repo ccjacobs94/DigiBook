@@ -12,22 +12,44 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Only cache GET requests for our shell
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // Exclude API calls and media files from basic caching to ensure fresh metadata and avoid caching huge audio files in SW.
   const url = new URL(event.request.url);
+
+  // Exclude API calls and media files
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/audio/') || url.pathname.startsWith('/cover/')) {
       return;
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
+  // Use Network First strategy for HTML pages (like root '/') to ensure freshness
+  if (event.request.mode === 'navigate' || url.pathname === '/') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const resClone = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, resClone);
+          });
           return response;
-        }
-        return fetch(event.request);
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Default to Network First for everything else we handle
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        const resClone = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, resClone);
+        });
+        return response;
       })
+      .catch(() => caches.match(event.request))
   );
 });

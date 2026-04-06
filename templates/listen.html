@@ -69,18 +69,78 @@
             .control-group { width: 100%; }
             .control-group select { width: 100%; padding: 8px; font-size: 1rem; }
         }
+        .header-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .header-back-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #007bff;
+            padding: 10px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #e9ecef;
+            width: 40px;
+            height: 40px;
+        }
+        .header-back-btn:hover {
+            background: #dde2e6;
+        }
+        .header-title {
+            flex: 1;
+            text-align: center;
+            margin: 0;
+            padding: 0 10px;
+            font-size: 1.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
 <body>
     <div class="player-container">
-        <h1>{{ book_name }}</h1>
+        <div class="header-container">
+            <a href="/" class="header-back-btn" title="Back to Library">←</a>
+            <h1 class="header-title">{{ book_name }}</h1>
+            <div style="width: 40px;"></div> <!-- Spacer for centering title -->
+        </div>
+
         <img src="/cover/{{ book_name }}" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
         <div class="no-cover" style="display: none;">🎵</div>
 
-        <audio id="audioPlayer" controls>
+        <audio id="audioPlayer">
             <source src="/audio/{{ book_name }}" type="audio/mpeg">
             Your browser does not support the audio element.
         </audio>
+
+        <div class="custom-player-controls" style="width: 100%; display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
+            <div class="progress-bar-container" style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem;">
+                <span id="currentTimeDisplay">0:00</span>
+                <input type="range" id="progressBar" value="0" step="0.1" style="flex: 1; accent-color: #007bff; cursor: pointer;">
+                <span id="durationDisplay">0:00</span>
+            </div>
+
+            <div class="playback-buttons" style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <button id="skipBackBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #333; padding: 10px;">↺ 15</button>
+                <button id="playPauseBtn" style="background: #007bff; color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">▶</button>
+                <button id="skipForwardBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #333; padding: 10px;">15 ↻</button>
+            </div>
+
+            <div class="utility-buttons" style="display: flex; justify-content: space-around; align-items: center; gap: 10px;">
+                <button id="chaptersToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #555; display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">☰</span><span style="font-size: 0.7rem;">Chapters</span></button>
+                <button id="bookmarksToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #555; display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">🔖</span><span style="font-size: 0.7rem;">Bookmarks</span></button>
+            </div>
+        </div>
 
         <div class="controls-container">
             <div class="control-group" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
@@ -106,16 +166,17 @@
             </div>
         </div>
 
-        <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none;" id="chaptersContainer">
+        <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="chaptersContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>Chapters</h3>
+                <h3 style="margin: 0;">Chapters</h3>
+                <button id="closeChaptersBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer;">✕</button>
             </div>
-            <ul id="chaptersList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
+            <ul id="chaptersList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; padding: 5px;">
                 <!-- Chapters will be populated here -->
             </ul>
         </div>
 
-        <div class="bookmarks-container" style="width: 100%; margin-top: 10px;">
+        <div class="bookmarks-container" style="width: 100%; margin-top: 10px; display: none; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="bookmarksContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>Bookmarks</h3>
                 <button id="addBookmarkBtn" style="padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Add Bookmark</button>
@@ -125,8 +186,6 @@
             </ul>
         </div>
     </div>
-
-    <a href="/" class="back-link">← Back to Library</a>
 
     <script>
         if ('serviceWorker' in navigator) {
@@ -326,6 +385,73 @@
 
         // Initialize bookmarks
         renderBookmarks();
+
+        const bookmarksToggleBtn = document.getElementById('bookmarksToggleBtn');
+        const bookmarksContainer = document.getElementById('bookmarksContainer');
+        bookmarksToggleBtn.addEventListener('click', () => {
+            bookmarksContainer.style.display = bookmarksContainer.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Custom Player Controls Logic
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const skipBackBtn = document.getElementById('skipBackBtn');
+        const skipForwardBtn = document.getElementById('skipForwardBtn');
+        const progressBar = document.getElementById('progressBar');
+        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const durationDisplay = document.getElementById('durationDisplay');
+
+        playPauseBtn.addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+            } else {
+                audioPlayer.pause();
+            }
+        });
+
+        audioPlayer.addEventListener('play', () => {
+            playPauseBtn.textContent = '⏸';
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playPauseBtn.textContent = '▶';
+        });
+
+        skipBackBtn.addEventListener('click', () => {
+            audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 15);
+        });
+
+        skipForwardBtn.addEventListener('click', () => {
+            audioPlayer.currentTime = Math.min(audioPlayer.duration, audioPlayer.currentTime + 15);
+        });
+
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            progressBar.max = audioPlayer.duration;
+            durationDisplay.textContent = formatTime(audioPlayer.duration);
+        });
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            progressBar.value = audioPlayer.currentTime;
+            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+        });
+
+        progressBar.addEventListener('input', () => {
+            audioPlayer.currentTime = progressBar.value;
+            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+        });
+
+        const chaptersToggleBtn = document.getElementById('chaptersToggleBtn');
+        const chaptersContainer = document.getElementById('chaptersContainer');
+        const closeChaptersBtn = document.getElementById('closeChaptersBtn');
+
+        chaptersToggleBtn.addEventListener('click', () => {
+            chaptersContainer.style.display = chaptersContainer.style.display === 'none' ? 'block' : 'none';
+        });
+
+        if (closeChaptersBtn) {
+            closeChaptersBtn.addEventListener('click', () => {
+                chaptersContainer.style.display = 'none';
+            });
+        }
 
         // Load Chapters
         async function loadChapters() {
