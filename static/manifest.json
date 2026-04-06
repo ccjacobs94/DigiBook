@@ -1,0 +1,16 @@
+{
+  "name": "DigiBook",
+  "short_name": "DigiBook",
+  "description": "Digitize and listen to your audiobooks on the go.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDMi42MiAyIDIgMi42MiAyIDEydjguNWMwIDEuNjYuNDIgMyAzIDNMMTIgMjRzMTEuNS0uNDIgMTEuNS0zVjEyYzAtOS4zOC0uNjItMTAtMTAtMTB6TTEyIDIxYy0xLjA4IDAtMi0uOTItMi0ycy45Mi0yIDItMiAyIC45MiAyIDItLjkyIDItMiAya1oiIGZpbGw9IiMwMDdiZmYiLz48L3N2Zz4=",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
