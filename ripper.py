@@ -54,11 +54,8 @@ def merge_disks(temp_dir, output_file_path):
         subprocess.run(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
     except FileNotFoundError:
         raise Exception("ffmpeg not found. Please install ffmpeg to enable MP3 merging.")
-    audio_files = []
     # Collect all mp3 files, assuming they are named predictably like disk_1.mp3
-    for f in os.listdir(temp_dir):
-        if f.endswith(".mp3"):
-            audio_files.append(f)
+    audio_files = [f for f in os.listdir(temp_dir) if f.endswith(".mp3")]
 
     # Sort files to ensure order (e.g., disk_1, disk_2, etc.)
     # We sort based on the number part of 'disk_N.mp3'
