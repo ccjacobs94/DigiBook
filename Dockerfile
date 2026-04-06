@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
+# Persist library and data across restarts
+VOLUME ["/app/library", "/app/data"]
+
 # Expose port
 EXPOSE 5000
 

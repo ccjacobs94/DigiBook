@@ -17,16 +17,19 @@ app = Flask(__name__)
 
 LIBRARY_DIR = 'library'
 TEMP_DIR = 'temp'
+DATA_DIR = 'data'
+DB_PATH = os.path.join(DATA_DIR, 'metadata.db')
 
 # Ensure directories exist
 os.makedirs(LIBRARY_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # Simple in-memory session manager to track disk number per audiobook
 active_sessions = {}
 
 def init_db():
-    conn = sqlite3.connect('metadata.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS progress (
@@ -41,7 +44,7 @@ init_db()
 
 
 def get_db_connection():
-    conn = sqlite3.connect('metadata.db')
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -374,6 +377,8 @@ def api_upload():
     # We will trigger the merge here
     try:
         output_format = request.form.get('output_format', '.mp3')
+        if output_format not in ['.mp3', '.m4b']:
+            output_format = '.mp3'
         output_file = os.path.join(LIBRARY_DIR, f"{book_name}{output_format}")
         merge_disks(book_temp_dir, output_file, output_format=output_format)
     except Exception as e:
@@ -476,6 +481,8 @@ def rip_book(book_name):
         elif action == 'finish':
             original_title = active_sessions[book_name].get('original_title', book_name)
             output_format = request.form.get('output_format', '.mp3')
+            if output_format not in ['.mp3', '.m4b']:
+                output_format = '.mp3'
             try:
                 # Merge disks and save to library
                 output_file = os.path.join(LIBRARY_DIR, f"{book_name}{output_format}")
