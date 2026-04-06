@@ -55,8 +55,11 @@
     </style>
 </head>
 <body>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>Edit Metadata for {{ book_name }}</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="/static/logo.png" alt="DigiBook Logo" style="height: 50px; width: auto; object-fit: contain;">
+            <h1 style="margin: 0;">Edit Metadata for {{ book_name }}</h1>
+        </div>
         <button class="btn theme-toggle-btn" style="background: none; border: 1px solid var(--border-color); color: var(--text-color);">🌓 Theme</button>
     </div>
 
