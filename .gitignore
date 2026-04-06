@@ -1,4 +1,7 @@
 library/
 temp/
+data/
 __pycache__/
 *.log
+.coverage
+metadata.db

@@ -12,6 +12,30 @@ def get_cd_drive_path():
     else:
         return None
 
+def eject_drive(cd_drive=None):
+    """
+    Ejects the CD drive using OS-level commands.
+    """
+    cd_drive = cd_drive or get_cd_drive_path()
+    try:
+        # Currently defaults to eject on Linux.
+        # Fallback to no-op for mock environments if eject command doesn't exist
+        if cd_drive:
+            subprocess.run(['eject', cd_drive], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(f"Ejected drive {cd_drive}")
+        else:
+            print("No CD drive specified to eject.")
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f"Could not eject drive: {e}")
+
+def check_drive_ready(cd_drive=None):
+    """
+    Checks if the CD drive is ready and contains a medium.
+    TODO: Replace with real OS-level check (like 'cdparanoia -Q') for physical hardware support.
+    Since this is mostly simulated, we'll return True to allow ripping to proceed.
+    """
+    return True
+
 def rip_disk(output_dir, disk_num, cd_drive=None):
     """
     Attempts to rip a CD disk using cdparanoia. If no drive is found,
@@ -45,9 +69,9 @@ def rip_disk(output_dir, disk_num, cd_drive=None):
         silent_audio.export(file_path, format="mp3")
         print(f"Mock ripped disk {disk_num} to {file_path}")
 
-def merge_disks(temp_dir, output_file_path):
+def merge_disks(temp_dir, output_file_path, output_format='.mp3'):
     """
-    Merges all MP3 files in a directory into a single MP3 file.
+    Merges all MP3 files in a directory into a single MP3 or M4B file with chapter markers.
     """
     # Verify pydub has its requirements
     try:
@@ -55,15 +79,48 @@ def merge_disks(temp_dir, output_file_path):
     except FileNotFoundError:
         raise Exception("ffmpeg not found. Please install ffmpeg to enable MP3 merging.")
     # Collect all mp3 files, assuming they are named predictably like disk_1.mp3
-    audio_files = [f for f in os.listdir(temp_dir) if f.endswith(".mp3")]
+    audio_files = [f for f in os.listdir(temp_dir) if f.lower().endswith((".mp3", ".m4a", ".m4b"))]
+
+    import re
+    def natural_sort_key(s):
+        """Sorts files naturally (e.g., file2, file10)."""
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
     # Sort files to ensure order (e.g., disk_1, disk_2, etc.)
-    # We sort based on the number part of 'disk_N.mp3'
-    audio_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+    # We sort using a natural sort key
+    audio_files.sort(key=natural_sort_key)
 
     if not audio_files:
         print("No files to merge.")
         return
+
+    # Generate metadata with chapters
+    metadata_file_path = os.path.join(temp_dir, "metadata.txt")
+    with open(metadata_file_path, 'w') as f:
+        f.write(";FFMETADATA1\n")
+
+        current_start_ms = 0
+        for audio_file in audio_files:
+            full_path = os.path.join(temp_dir, audio_file)
+
+            # Use ffprobe to get exact duration in seconds
+            duration_res = subprocess.run([
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', full_path
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            duration_sec = float(duration_res.stdout.strip())
+            duration_ms = int(duration_sec * 1000)
+
+            title = audio_file.replace('.mp3', '').replace('_', ' ').title()
+
+            f.write("[CHAPTER]\n")
+            f.write("TIMEBASE=1/1000\n")
+            f.write(f"START={current_start_ms}\n")
+            f.write(f"END={current_start_ms + duration_ms}\n")
+            f.write(f"title={title}\n")
+
+            current_start_ms += duration_ms
 
     # Use ffmpeg concat demuxer for memory efficient merging
     concat_file_path = os.path.join(temp_dir, "files.txt")
@@ -71,8 +128,35 @@ def merge_disks(temp_dir, output_file_path):
         for audio_file in audio_files:
             f.write(f"file '{audio_file}'\n")
 
+    temp_merged_path = os.path.join(temp_dir, "temp_merged.mp3")
     try:
-        subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', concat_file_path, '-c', 'copy', output_file_path], check=True)
-        print(f"Merged {len(audio_files)} disks into {output_file_path}")
+        # First pass: merge files into a temporary file with chapter metadata
+        subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', concat_file_path, '-i', metadata_file_path, '-map_metadata', '1', '-map', '0:a', '-c:a', 'copy', temp_merged_path], check=True)
+
+        # Second pass depends on output format
+        if output_format == '.m4b':
+            # Re-encode to AAC for m4b support
+            subprocess.run(['ffmpeg', '-y', '-i', temp_merged_path, '-c:a', 'aac', output_file_path], check=True)
+        else:
+            # Re-mux the temporary file to generate an accurate Xing/Info VBR header
+            subprocess.run(['ffmpeg', '-y', '-i', temp_merged_path, '-write_xing', '1', '-c', 'copy', output_file_path], check=True)
+
+        print(f"Merged and corrected for {len(audio_files)} disks into {output_file_path}")
     except subprocess.CalledProcessError as e:
         raise Exception(f"Failed to merge files: {e}")
+    finally:
+        # Clean up temporary files
+        if os.path.exists(temp_merged_path):
+            os.remove(temp_merged_path)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Standalone audiobook CD ripper.")
+    parser.add_argument('--output_dir', type=str, default='.', help="Directory to save the ripped file.")
+    parser.add_argument('--disk', type=int, default=1, help="Disk number being ripped.")
+    parser.add_argument('--cd_drive', type=str, default=None, help="Path to the CD drive.")
+
+    args = parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    rip_disk(args.output_dir, args.disk, cd_drive=args.cd_drive)

@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" href="/static/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/static/icon-192x192.png">
+    <script src="/static/theme.js"></script>
+    <title>Listen to {{ book_name }}</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --text-muted: #555555;
+            --border-color: #cccccc;
+            --border-light: #eeeeee;
+            --card-bg: #f9f9f9;
+            --header-bg: #e9ecef;
+            --header-hover: #dde2e6;
+            --cover-bg: #e0e0e0;
+            --cover-text: #888888;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --border-color: #444444;
+            --border-light: #333333;
+            --card-bg: #1e1e1e;
+            --header-bg: #2a2a2a;
+            --header-hover: #3a3a3a;
+            --cover-bg: #333333;
+            --cover-text: #777777;
+        }
+
+        body { font-family: sans-serif; margin: 2rem; display: flex; flex-direction: column; align-items: center; background-color: var(--bg-color); color: var(--text-color); }
+        h1 { color: var(--text-color); text-align: center; word-break: break-word; }
+        select { background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); }
+        .player-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .cover-image {
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .no-cover {
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            aspect-ratio: 1;
+            background: var(--cover-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            color: var(--cover-text);
+            border-radius: 4px;
+        }
+        audio {
+            width: 100%;
+            outline: none;
+        }
+        .back-link {
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 1.1rem;
+        }
+        .back-link:hover { text-decoration: underline; }
+
+        .controls-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 360px) {
+            body { margin: 1rem; }
+            .player-container { padding: 10px; gap: 15px; }
+            .controls-container { flex-direction: column; align-items: stretch; gap: 15px; }
+            .control-group { width: 100%; }
+            .control-group select { width: 100%; padding: 8px; font-size: 1rem; }
+        }
+        .header-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .header-back-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #007bff;
+            padding: 10px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: var(--header-bg);
+            width: 40px;
+            height: 40px;
+        }
+        .header-back-btn:hover {
+            background: var(--header-hover);
+        }
+        .header-title {
+            flex: 1;
+            text-align: center;
+            margin: 0;
+            padding: 0 10px;
+            font-size: 1.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <div class="header-container">
+            <a href="/" class="header-back-btn" title="Back to Library">←</a>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; flex: 1; overflow: hidden;">
+                <img src="/static/logo.png" alt="DigiBook Logo" style="height: 30px; width: auto; object-fit: contain;">
+                <h1 class="header-title" style="flex: none;">{{ book_name }}</h1>
+            </div>
+            <button class="theme-toggle-btn" style="background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 4px; padding: 5px; cursor: pointer; white-space: nowrap;">🌓</button>
+        </div>
+
+        <img src="/cover/{{ book_name }}" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="no-cover" style="display: none;">🎵</div>
+
+        <audio id="audioPlayer">
+            <source src="/audio/{{ book_name }}" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+
+        <div class="custom-player-controls" style="width: 100%; display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
+            <div class="progress-bar-container" style="display: flex; align-items: center; gap: 10px; font-size: 0.9rem;">
+                <span id="currentTimeDisplay">0:00</span>
+                <input type="range" id="progressBar" value="0" step="0.1" style="flex: 1; accent-color: #007bff; cursor: pointer;">
+                <span id="durationDisplay">0:00</span>
+            </div>
+
+            <div class="playback-buttons" style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <button id="skipBackBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color); padding: 10px;">↺ 15</button>
+                <button id="playPauseBtn" style="background: #007bff; color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">▶</button>
+                <button id="skipForwardBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color); padding: 10px;">15 ↻</button>
+            </div>
+
+            <div class="utility-buttons" style="display: flex; justify-content: space-around; align-items: center; gap: 10px;">
+                <button id="chaptersToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">☰</span><span style="font-size: 0.7rem;">Chapters</span></button>
+                <button id="bookmarksToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">🔖</span><span style="font-size: 0.7rem;">Bookmarks</span></button>
+            </div>
+        </div>
+
+        <div class="controls-container">
+            <div class="control-group" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                <label for="playbackSpeed">Playback Speed</label>
+                <select id="playbackSpeed">
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1.0x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2.0x</option>
+                </select>
+            </div>
+
+            <div class="control-group" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                <label for="sleepTimer">Sleep Timer</label>
+                <select id="sleepTimer">
+                    <option value="0" selected>Off</option>
+                    <option value="15">15 min</option>
+                    <option value="30">30 min</option>
+                    <option value="60">60 min</option>
+                </select>
+                <span id="sleepTimerDisplay" style="font-size: 0.8rem; color: #666; min-height: 1.2em;"></span>
+            </div>
+        </div>
+
+        <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none; background: var(--bg-color); padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="chaptersContainer">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">Chapters</h3>
+                <button id="closeChaptersBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-color);">✕</button>
+            </div>
+            <ul id="chaptersList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; padding: 5px;">
+                <!-- Chapters will be populated here -->
+            </ul>
+        </div>
+
+        <div class="bookmarks-container" style="width: 100%; margin-top: 10px; display: none; background: var(--bg-color); padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="bookmarksContainer">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Bookmarks</h3>
+                <button id="addBookmarkBtn" style="padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Add Bookmark</button>
+            </div>
+            <ul id="bookmarksList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;">
+                <!-- Bookmarks will be populated here -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+
+        const audioPlayer = document.getElementById('audioPlayer');
+        const bookName = "{{ book_name }}";
+        const durationKey = `audiobook_duration_${bookName}`;
+        const bookmarksKey = `audiobook_bookmarks_${bookName}`;
+
+        // Load saved position from API
+        async function loadPosition() {
+            try {
+                const response = await fetch(`/api/progress/${encodeURIComponent(bookName)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.position && data.position > 0) {
+                        audioPlayer.currentTime = data.position;
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading position:", error);
+            }
+        }
+
+        loadPosition();
+
+        // Save position periodically and on pause
+        async function savePosition(position) {
+            try {
+                await fetch(`/api/progress/${encodeURIComponent(bookName)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ position: position })
+                });
+            } catch (error) {
+                console.error("Error saving position:", error);
+            }
+        }
+
+        function scheduleSave() {
+            setTimeout(() => {
+                if (!audioPlayer.paused) {
+                    savePosition(audioPlayer.currentTime);
+                }
+                scheduleSave();
+            }, 10000);
+        }
+
+        scheduleSave();
+
+        audioPlayer.addEventListener('pause', () => {
+            savePosition(audioPlayer.currentTime);
+        });
+
+        // Clear saved position when finished
+        audioPlayer.addEventListener('ended', () => {
+            savePosition(0);
+        });
+
+        // Save duration
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            if (!isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
+                localStorage.setItem(durationKey, audioPlayer.duration);
+            }
+        });
+
+        // Playback Speed
+        const playbackSpeedSelect = document.getElementById('playbackSpeed');
+        playbackSpeedSelect.addEventListener('change', (e) => {
+            audioPlayer.playbackRate = parseFloat(e.target.value);
+        });
+
+        // Sleep Timer
+        const sleepTimerSelect = document.getElementById('sleepTimer');
+        const sleepTimerDisplay = document.getElementById('sleepTimerDisplay');
+        let sleepTimerTimeout = null;
+        let sleepTimerEnd = 0;
+
+        function updateSleepTimerDisplay() {
+            if (!sleepTimerTimeout) {
+                sleepTimerDisplay.textContent = "";
+                return;
+            }
+            const remaining = Math.max(0, Math.floor((sleepTimerEnd - Date.now()) / 1000));
+            if (remaining > 0) {
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                sleepTimerDisplay.textContent = `${mins}:${secs.toString().padStart(2, '0')} remaining`;
+                setTimeout(updateSleepTimerDisplay, 1000);
+            } else {
+                sleepTimerDisplay.textContent = "";
+            }
+        }
+
+        sleepTimerSelect.addEventListener('change', (e) => {
+            const minutes = parseInt(e.target.value, 10);
+            if (sleepTimerTimeout) {
+                clearTimeout(sleepTimerTimeout);
+                sleepTimerTimeout = null;
+            }
+            if (minutes > 0) {
+                sleepTimerEnd = Date.now() + minutes * 60 * 1000;
+                sleepTimerTimeout = setTimeout(() => {
+                    audioPlayer.pause();
+                    sleepTimerSelect.value = "0";
+                    sleepTimerTimeout = null;
+                    updateSleepTimerDisplay();
+                }, minutes * 60 * 1000);
+                updateSleepTimerDisplay();
+            } else {
+                updateSleepTimerDisplay();
+            }
+        });
+
+        // Bookmarks
+        const addBookmarkBtn = document.getElementById('addBookmarkBtn');
+        const bookmarksList = document.getElementById('bookmarksList');
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function loadBookmarks() {
+            const savedBookmarks = localStorage.getItem(bookmarksKey);
+            return savedBookmarks ? JSON.parse(savedBookmarks) : [];
+        }
+
+        function saveBookmarks(bookmarks) {
+            localStorage.setItem(bookmarksKey, JSON.stringify(bookmarks));
+        }
+
+        function renderBookmarks() {
+            bookmarksList.innerHTML = '';
+            const bookmarks = loadBookmarks();
+            if (bookmarks.length === 0) {
+                bookmarksList.innerHTML = '<li style="color: #888; text-align: center; padding: 10px;">No bookmarks yet.</li>';
+                return;
+            }
+
+            bookmarks.sort((a, b) => a.time - b.time).forEach((bm, index) => {
+                const li = document.createElement('li');
+                li.style.display = 'flex';
+                li.style.justifyContent = 'space-between';
+                li.style.alignItems = 'center';
+                li.style.padding = '5px 0';
+                li.style.borderBottom = '1px solid #eee';
+
+                const link = document.createElement('a');
+                link.href = "#";
+                link.textContent = formatTime(bm.time);
+                link.style.color = '#007bff';
+                link.style.textDecoration = 'none';
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    audioPlayer.currentTime = bm.time;
+                    audioPlayer.play();
+                });
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = '❌';
+                delBtn.style.background = 'none';
+                delBtn.style.border = 'none';
+                delBtn.style.cursor = 'pointer';
+                delBtn.addEventListener('click', () => {
+                    const currentBookmarks = loadBookmarks();
+                    currentBookmarks.splice(index, 1);
+                    saveBookmarks(currentBookmarks);
+                    renderBookmarks();
+                });
+
+                li.appendChild(link);
+                li.appendChild(delBtn);
+                bookmarksList.appendChild(li);
+            });
+        }
+
+        addBookmarkBtn.addEventListener('click', () => {
+            const bookmarks = loadBookmarks();
+            bookmarks.push({ time: audioPlayer.currentTime });
+            saveBookmarks(bookmarks);
+            renderBookmarks();
+        });
+
+        // Initialize bookmarks
+        renderBookmarks();
+
+        const bookmarksToggleBtn = document.getElementById('bookmarksToggleBtn');
+        const bookmarksContainer = document.getElementById('bookmarksContainer');
+        bookmarksToggleBtn.addEventListener('click', () => {
+            bookmarksContainer.style.display = bookmarksContainer.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // MediaSession API Integration
+        async function setupMediaSession() {
+            if ('mediaSession' in navigator) {
+                try {
+                    const response = await fetch(`/api/metadata/${encodeURIComponent(bookName)}`);
+                    let metadata = {};
+                    if (response.ok) {
+                        metadata = await response.json();
+                    }
+
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: metadata.title || bookName,
+                        artist: metadata.author || 'Unknown Author',
+                        album: 'Audiobooks',
+                        artwork: [
+                            { src: `/cover/${encodeURIComponent(bookName)}`, sizes: '512x512', type: 'image/jpeg' },
+                            { src: `/cover/${encodeURIComponent(bookName)}`, sizes: '512x512', type: 'image/png' }
+                        ]
+                    });
+
+                    navigator.mediaSession.setActionHandler('play', () => audioPlayer.play());
+                    navigator.mediaSession.setActionHandler('pause', () => audioPlayer.pause());
+                    navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+                        const skipTime = details.seekOffset || 15;
+                        audioPlayer.currentTime = Math.max(audioPlayer.currentTime - skipTime, 0);
+                    });
+                    navigator.mediaSession.setActionHandler('seekforward', (details) => {
+                        const skipTime = details.seekOffset || 15;
+                        audioPlayer.currentTime = Math.min(audioPlayer.currentTime + skipTime, audioPlayer.duration);
+                    });
+                    navigator.mediaSession.setActionHandler('seekto', (details) => {
+                        if (details.fastSeek && 'fastSeek' in audioPlayer) {
+                          audioPlayer.fastSeek(details.seekTime);
+                          return;
+                        }
+                        audioPlayer.currentTime = details.seekTime;
+                    });
+                    navigator.mediaSession.setActionHandler('stop', () => {
+                        audioPlayer.pause();
+                        audioPlayer.currentTime = 0;
+                    });
+
+                } catch (error) {
+                    console.error("Error setting up MediaSession:", error);
+                }
+            }
+        }
+
+        setupMediaSession();
+
+        function updatePositionState() {
+            if ('mediaSession' in navigator && !isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
+                navigator.mediaSession.setPositionState({
+                    duration: audioPlayer.duration,
+                    playbackRate: audioPlayer.playbackRate,
+                    position: audioPlayer.currentTime
+                });
+            }
+        }
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            progressBar.value = audioPlayer.currentTime;
+            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+            // Throttle position updates a bit if needed, but updating on timeupdate keeps it in sync
+            // We'll update it when paused/played and on seek to be efficient.
+        });
+
+        audioPlayer.addEventListener('play', () => {
+            playPauseBtn.textContent = '⏸';
+            updatePositionState();
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playPauseBtn.textContent = '▶';
+            updatePositionState();
+        });
+
+        audioPlayer.addEventListener('ratechange', () => {
+            updatePositionState();
+        });
+
+        // Custom Player Controls Logic
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const skipBackBtn = document.getElementById('skipBackBtn');
+        const skipForwardBtn = document.getElementById('skipForwardBtn');
+        const progressBar = document.getElementById('progressBar');
+        const currentTimeDisplay = document.getElementById('currentTimeDisplay');
+        const durationDisplay = document.getElementById('durationDisplay');
+
+        playPauseBtn.addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+            } else {
+                audioPlayer.pause();
+            }
+        });
+
+        skipBackBtn.addEventListener('click', () => {
+            audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 15);
+            updatePositionState();
+        });
+
+        skipForwardBtn.addEventListener('click', () => {
+            audioPlayer.currentTime = Math.min(audioPlayer.duration, audioPlayer.currentTime + 15);
+            updatePositionState();
+        });
+
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            progressBar.max = audioPlayer.duration;
+            durationDisplay.textContent = formatTime(audioPlayer.duration);
+            updatePositionState();
+        });
+
+        progressBar.addEventListener('input', () => {
+            audioPlayer.currentTime = progressBar.value;
+            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+        });
+
+        progressBar.addEventListener('change', () => {
+            updatePositionState();
+        });
+
+        const chaptersToggleBtn = document.getElementById('chaptersToggleBtn');
+        const chaptersContainer = document.getElementById('chaptersContainer');
+        const closeChaptersBtn = document.getElementById('closeChaptersBtn');
+
+        chaptersToggleBtn.addEventListener('click', () => {
+            chaptersContainer.style.display = chaptersContainer.style.display === 'none' ? 'block' : 'none';
+        });
+
+        if (closeChaptersBtn) {
+            closeChaptersBtn.addEventListener('click', () => {
+                chaptersContainer.style.display = 'none';
+            });
+        }
+
+        // Load Chapters
+        async function loadChapters() {
+            try {
+                const response = await fetch(`/api/chapters/${encodeURIComponent(bookName)}`);
+                const chapters = await response.json();
+
+                if (chapters.length > 0) {
+                    const chaptersContainer = document.getElementById('chaptersContainer');
+                    const chaptersList = document.getElementById('chaptersList');
+                    chaptersContainer.style.display = 'block';
+
+                    chapters.forEach((chap) => {
+                        const li = document.createElement('li');
+                        li.style.display = 'flex';
+                        li.style.justifyContent = 'space-between';
+                        li.style.alignItems = 'center';
+                        li.style.padding = '5px 0';
+                        li.style.borderBottom = '1px solid #eee';
+
+                        const link = document.createElement('a');
+                        link.href = "#";
+                        link.textContent = `${formatTime(chap.start_time)} - ${chap.title}`;
+                        link.style.color = '#007bff';
+                        link.style.textDecoration = 'none';
+                        link.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            audioPlayer.currentTime = chap.start_time;
+                            audioPlayer.play();
+                        });
+
+                        li.appendChild(link);
+                        chaptersList.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                console.error("Error loading chapters:", err);
+            }
+        }
+
+        loadChapters();
+
+    </script>
+</body>
+</html>
