@@ -161,21 +161,21 @@ def get_book_metadata(filename, file_path):
             tags = audio.tags if audio.tags else {}
 
             if tags.getall('TIT2'):
-                title = tags.getall('TIT2')[0].text[0]
+                title = str(tags.getall('TIT2')[0].text[0])
             if tags.getall('TPE1'):
-                author = tags.getall('TPE1')[0].text[0]
+                author = str(tags.getall('TPE1')[0].text[0])
             if tags.getall('TDRC'):
-                year = tags.getall('TDRC')[0].text[0]
+                year = str(tags.getall('TDRC')[0].text[0])
         elif filename.endswith('.m4b'):
             audio = MP4(file_path)
             tags = audio.tags if audio.tags else {}
 
             if tags.get('\xa9nam'):
-                title = tags.get('\xa9nam')[0]
+                title = str(tags.get('\xa9nam')[0])
             if tags.get('\xa9ART'):
-                author = tags.get('\xa9ART')[0]
+                author = str(tags.get('\xa9ART')[0])
             if tags.get('\xa9day'):
-                year = tags.get('\xa9day')[0]
+                year = str(tags.get('\xa9day')[0])
     except Exception as e:
         pass
 
