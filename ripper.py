@@ -79,11 +79,16 @@ def merge_disks(temp_dir, output_file_path, output_format='.mp3'):
     except FileNotFoundError:
         raise Exception("ffmpeg not found. Please install ffmpeg to enable MP3 merging.")
     # Collect all mp3 files, assuming they are named predictably like disk_1.mp3
-    audio_files = [f for f in os.listdir(temp_dir) if f.endswith(".mp3")]
+    audio_files = [f for f in os.listdir(temp_dir) if f.lower().endswith((".mp3", ".m4a", ".m4b"))]
+
+    import re
+    def natural_sort_key(s):
+        """Sorts files naturally (e.g., file2, file10)."""
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
     # Sort files to ensure order (e.g., disk_1, disk_2, etc.)
-    # We sort based on the number part of 'disk_N.mp3'
-    audio_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+    # We sort using a natural sort key
+    audio_files.sort(key=natural_sort_key)
 
     if not audio_files:
         print("No files to merge.")
@@ -143,3 +148,15 @@ def merge_disks(temp_dir, output_file_path, output_format='.mp3'):
         # Clean up temporary files
         if os.path.exists(temp_merged_path):
             os.remove(temp_merged_path)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Standalone audiobook CD ripper.")
+    parser.add_argument('--output_dir', type=str, default='.', help="Directory to save the ripped file.")
+    parser.add_argument('--disk', type=int, default=1, help="Disk number being ripped.")
+    parser.add_argument('--cd_drive', type=str, default=None, help="Path to the CD drive.")
+
+    args = parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
+    rip_disk(args.output_dir, args.disk, cd_drive=args.cd_drive)

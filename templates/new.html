@@ -56,6 +56,26 @@
         <button type="submit" class="btn">Start Ripping</button>
     </form>
 
+    <div class="search-section" style="margin-top: 20px;">
+        <h3>Upload Existing Files</h3>
+        <p style="font-size: 0.9em; color: #666;">Upload multiple audio files or a directory directly to merge them.</p>
+        <form id="upload_form">
+            <div class="form-group">
+                <label for="upload_files">Select Files or Folder:</label><br>
+                <input type="file" id="upload_files" name="files" multiple webkitdirectory>
+            </div>
+            <div class="form-group">
+                <label for="upload_output_format">Merge Format:</label><br>
+                <select id="upload_output_format" name="output_format" style="padding: 8px; border-radius: 5px;">
+                    <option value=".mp3" selected>Merge to MP3</option>
+                    <option value=".m4b">Merge to M4B (Audiobook)</option>
+                </select>
+            </div>
+            <button type="button" id="upload_btn" class="btn" style="background: #17a2b8;">Upload & Merge</button>
+            <div id="upload_status" style="margin-top: 10px; font-weight: bold;"></div>
+        </form>
+    </div>
+
     <script>
         const searchInput = document.getElementById('search_input');
         const searchResults = document.getElementById('search_results');
@@ -184,6 +204,69 @@
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Browse...";
+            }
+        });
+
+        document.getElementById('upload_btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('upload_files');
+            const bookName = document.getElementById('book_name').value.trim();
+            const statusDiv = document.getElementById('upload_status');
+
+            if (!bookName) {
+                statusDiv.innerText = "Please enter an Audiobook Name above.";
+                statusDiv.style.color = "red";
+                return;
+            }
+
+            if (fileInput.files.length === 0) {
+                statusDiv.innerText = "Please select files or a directory.";
+                statusDiv.style.color = "red";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('book_name', bookName);
+            formData.append('author', document.getElementById('author').value);
+            formData.append('year', document.getElementById('year').value);
+            formData.append('cover_url', document.getElementById('cover_url').value);
+            formData.append('isbn', document.getElementById('isbn').value);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('output_format', document.getElementById('upload_output_format').value);
+
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('files', fileInput.files[i]);
+            }
+
+            const btn = document.getElementById('upload_btn');
+            btn.disabled = true;
+            btn.innerText = "Uploading & Merging...";
+            statusDiv.innerText = "Processing... this may take a few minutes.";
+            statusDiv.style.color = "blue";
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    statusDiv.innerText = "Success! Redirecting...";
+                    statusDiv.style.color = "green";
+                    window.location.href = data.redirect_url;
+                } else {
+                    statusDiv.innerText = "Error: " + (data.message || "Unknown error");
+                    statusDiv.style.color = "red";
+                    btn.disabled = false;
+                    btn.innerText = "Upload & Merge";
+                }
+            } catch (error) {
+                console.error("Upload error:", error);
+                statusDiv.innerText = "Error during upload. See console.";
+                statusDiv.style.color = "red";
+                btn.disabled = false;
+                btn.innerText = "Upload & Merge";
             }
         });
     </script>
