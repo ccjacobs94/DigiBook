@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" href="/static/icon-192x192.png">
+    <link rel="apple-touch-icon" href="/static/icon-192x192.png">
     <script src="/static/theme.js"></script>
     <title>Listen to {{ book_name }}</title>
     <style>
@@ -139,7 +141,10 @@
     <div class="player-container">
         <div class="header-container">
             <a href="/" class="header-back-btn" title="Back to Library">←</a>
-            <h1 class="header-title">{{ book_name }}</h1>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; flex: 1; overflow: hidden;">
+                <img src="/static/logo.png" alt="DigiBook Logo" style="height: 30px; width: auto; object-fit: contain;">
+                <h1 class="header-title" style="flex: none;">{{ book_name }}</h1>
+            </div>
             <button class="theme-toggle-btn" style="background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 4px; padding: 5px; cursor: pointer; white-space: nowrap;">🌓</button>
         </div>
 
