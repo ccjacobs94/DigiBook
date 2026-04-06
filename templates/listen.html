@@ -241,11 +241,19 @@
         // Load saved position from API
         async function loadPosition() {
             try {
+                const localPos = parseFloat(localStorage.getItem(`audiobook_position_${bookName}`)) || 0;
+                if (localPos > 0) {
+                    audioPlayer.currentTime = localPos;
+                }
+
                 const response = await fetch(`/api/progress/${encodeURIComponent(bookName)}`);
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.position && data.position > 0) {
-                        audioPlayer.currentTime = data.position;
+                    const serverPos = data.position || 0;
+
+                    // If the server position is significantly different (e.g., played on another device)
+                    if (serverPos > 0 && Math.abs(serverPos - localPos) > 10) {
+                        audioPlayer.currentTime = serverPos;
                     }
                 }
             } catch (error) {
@@ -258,10 +266,12 @@
         // Save position periodically and on pause
         async function savePosition(position) {
             try {
+                localStorage.setItem(`audiobook_position_${bookName}`, position);
                 await fetch(`/api/progress/${encodeURIComponent(bookName)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ position: position })
+                    body: JSON.stringify({ position: position }),
+                    keepalive: true
                 });
             } catch (error) {
                 console.error("Error saving position:", error);
@@ -465,6 +475,7 @@
                     navigator.mediaSession.setActionHandler('stop', () => {
                         audioPlayer.pause();
                         audioPlayer.currentTime = 0;
+                        savePosition(0);
                     });
 
                 } catch (error) {
@@ -495,11 +506,14 @@
         audioPlayer.addEventListener('play', () => {
             playPauseBtn.textContent = '⏸';
             updatePositionState();
+            savePosition(audioPlayer.currentTime);
         });
 
         audioPlayer.addEventListener('pause', () => {
             playPauseBtn.textContent = '▶';
             updatePositionState();
+            // Ensure we save immediately on pause for instant reload/sync
+            savePosition(audioPlayer.currentTime);
         });
 
         audioPlayer.addEventListener('ratechange', () => {
