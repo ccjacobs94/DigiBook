@@ -23,6 +23,9 @@ def test_ui():
         page.goto('http://127.0.0.1:5000/listen/verify_test.mp3')
         page.wait_for_selector('#playbackSpeed')
 
+        # Open bookmarks menu first
+        page.click('#bookmarksToggleBtn')
+
         # Drop a bookmark
         print("Dropping bookmark...")
         page.click('#addBookmarkBtn')

@@ -150,6 +150,49 @@ def work_description():
         print(f"Error fetching description: {e}")
         return jsonify({'description': ''}), 500
 
+def get_book_metadata(filename, file_path):
+    title = filename.replace('.mp3', '').replace('.m4b', '')
+    author = ''
+    year = ''
+
+    try:
+        if filename.endswith('.mp3'):
+            audio = MP3(file_path)
+            tags = audio.tags if audio.tags else {}
+
+            if tags.getall('TIT2'):
+                title = tags.getall('TIT2')[0].text[0]
+            if tags.getall('TPE1'):
+                author = tags.getall('TPE1')[0].text[0]
+            if tags.getall('TDRC'):
+                year = tags.getall('TDRC')[0].text[0]
+        elif filename.endswith('.m4b'):
+            audio = MP4(file_path)
+            tags = audio.tags if audio.tags else {}
+
+            if tags.get('\xa9nam'):
+                title = tags.get('\xa9nam')[0]
+            if tags.get('\xa9ART'):
+                author = tags.get('\xa9ART')[0]
+            if tags.get('\xa9day'):
+                year = tags.get('\xa9day')[0]
+    except Exception as e:
+        pass
+
+    return {'title': title, 'author': author, 'year': year}
+
+@app.route('/api/metadata/<book_name>')
+def api_get_metadata(book_name):
+    # secure_filename removes spaces, so we just use basename to prevent directory traversal
+    safe_book_name = os.path.basename(book_name)
+    file_path = os.path.join(LIBRARY_DIR, safe_book_name)
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'Not found'}), 404
+
+    metadata = get_book_metadata(safe_book_name, file_path)
+    return jsonify(metadata)
+
+
 @app.route('/')
 def index():
     sort_by = request.args.get('sort_by', 'date_added')
@@ -161,42 +204,15 @@ def index():
     books = []
     for f in book_files:
         file_path = os.path.join(LIBRARY_DIR, f)
-
-        # Default metadata
-        title = f.replace('.mp3', '').replace('.m4b', '')
-        author = ''
-        year = ''
         date_added = os.path.getctime(file_path)
 
-        try:
-            if f.endswith('.mp3'):
-                audio = MP3(file_path)
-                tags = audio.tags if audio.tags else {}
-
-                if tags.getall('TIT2'):
-                    title = tags.getall('TIT2')[0].text[0]
-                if tags.getall('TPE1'):
-                    author = tags.getall('TPE1')[0].text[0]
-                if tags.getall('TDRC'):
-                    year = tags.getall('TDRC')[0].text[0]
-            elif f.endswith('.m4b'):
-                audio = MP4(file_path)
-                tags = audio.tags if audio.tags else {}
-
-                if tags.get('\xa9nam'):
-                    title = tags.get('\xa9nam')[0]
-                if tags.get('\xa9ART'):
-                    author = tags.get('\xa9ART')[0]
-                if tags.get('\xa9day'):
-                    year = tags.get('\xa9day')[0]
-        except Exception as e:
-            pass
+        meta = get_book_metadata(f, file_path)
 
         books.append({
             'filename': f,
-            'title': title,
-            'author': author,
-            'year': year,
+            'title': meta['title'],
+            'author': meta['author'],
+            'year': meta['year'],
             'date_added': date_added
         })
 
