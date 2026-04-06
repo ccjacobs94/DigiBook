@@ -3,33 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <title>New Audiobook</title>
+    <script src="/static/theme.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 2rem; }
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --text-muted: #666666;
+            --text-light: #555555;
+            --border-color: #cccccc;
+            --border-light: #eeeeee;
+            --card-bg: #f9f9f9;
+            --result-hover: #f0f8ff;
+            --input-bg: #ffffff;
+            --input-text: #333333;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --text-light: #888888;
+            --border-color: #444444;
+            --border-light: #333333;
+            --card-bg: #1e1e1e;
+            --result-hover: #2a2a2a;
+            --input-bg: #2a2a2a;
+            --input-text: #e0e0e0;
+        }
+
+        body { font-family: sans-serif; margin: 2rem; background-color: var(--bg-color); color: var(--text-color); }
+        h1, h3 { color: var(--text-color); }
         .form-group { margin-bottom: 15px; }
-        input[type="text"] { padding: 8px; width: 300px; }
+        input[type="text"], input[type="file"], select { padding: 8px; width: 300px; background-color: var(--input-bg); color: var(--input-text); border: 1px solid var(--border-color); }
         .btn { padding: 10px 15px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; }
         .btn:hover { background: #218838; }
         .back-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #007bff; }
 
-        .search-section { border: 1px solid #ccc; padding: 15px; border-radius: 5px; background: #f9f9f9; margin-bottom: 20px; max-width: 600px;}
-        .search-results { max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid #eee; background: white; }
-        .result-item { display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
-        .result-item:hover { background: #f0f8ff; }
-        .result-thumbnail { width: 50px; height: 75px; background: #ddd; object-fit: cover; }
+        .search-section { border: 1px solid var(--border-color); padding: 15px; border-radius: 5px; background: var(--card-bg); margin-bottom: 20px; max-width: 600px;}
+        .search-results { max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid var(--border-light); background: var(--bg-color); }
+        .result-item { display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid var(--border-light); cursor: pointer; }
+        .result-item:hover { background: var(--result-hover); }
+        .result-thumbnail { width: 50px; height: 75px; background: var(--border-color); object-fit: cover; }
         .result-details { flex: 1; }
         .result-title { font-weight: bold; }
-        .result-author { font-size: 0.9em; color: #555; }
+        .result-author { font-size: 0.9em; color: var(--text-light); }
         .loading { display: none; margin-top: 10px; color: #007bff; font-weight: bold; }
         .no-results { padding: 10px; color: #d9534f; }
     </style>
 </head>
 <body>
-    <a href="/" class="back-link">&larr; Back to Library</a>
-    <h1>Start New Audiobook</h1>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; max-width: 600px;">
+        <div>
+            <a href="/" class="back-link">&larr; Back to Library</a>
+            <h1 style="margin-top: 0;">Start New Audiobook</h1>
+        </div>
+        <button class="btn theme-toggle-btn" style="background: none; border: 1px solid var(--border-color); color: var(--text-color);">🌓 Theme</button>
+    </div>
 
     <div class="search-section">
         <h3>Search & Select Edition</h3>
-        <p style="font-size: 0.9em; color: #666;">Search Open Library to automatically fill metadata fields.</p>
+        <p style="font-size: 0.9em; color: var(--text-muted);">Search Open Library to automatically fill metadata fields.</p>
         <input type="text" id="search_input" placeholder="Search by title..." style="width: 100%; box-sizing: border-box;">
         <div id="search_loading" class="loading">Searching...</div>
         <div id="search_results" class="search-results"></div>
@@ -58,7 +91,7 @@
 
     <div class="search-section" style="margin-top: 20px;">
         <h3>Upload Existing Files</h3>
-        <p style="font-size: 0.9em; color: #666;">Upload multiple audio files or a directory directly to merge them.</p>
+        <p style="font-size: 0.9em; color: var(--text-muted);">Upload multiple audio files or a directory directly to merge them.</p>
         <form id="upload_form">
             <div class="form-group">
                 <label for="upload_files">Select Files or Folder:</label><br>

@@ -3,9 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <title>Ripping: {{ book_name }}</title>
+    <script src="/static/theme.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 2rem; }
-        .status { margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px; }
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --text-muted: #555555;
+            --status-bg: #e9ecef;
+            --border-color: #cccccc;
+            --input-bg: #ffffff;
+            --input-text: #333333;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --status-bg: #2a2a2a;
+            --border-color: #444444;
+            --input-bg: #2a2a2a;
+            --input-text: #e0e0e0;
+        }
+
+        body { font-family: sans-serif; margin: 2rem; background-color: var(--bg-color); color: var(--text-color); }
+        h1, h2 { color: var(--text-color); }
+        select { background-color: var(--input-bg); color: var(--input-text); border: 1px solid var(--border-color); }
+        .status { margin: 20px 0; padding: 15px; background: var(--status-bg); border-radius: 5px; }
         .btn-rip { padding: 10px 15px; background: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 5px; }
         .btn-rip:hover { background: #138496; }
         .btn-done { padding: 10px 15px; background: #ffc107; color: black; border: none; cursor: pointer; border-radius: 5px; }
@@ -14,13 +37,16 @@
     </style>
 </head>
 <body>
-    <h1>Ripping Audiobook: {{ book_name }}</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Ripping Audiobook: {{ book_name }}</h1>
+        <button class="btn theme-toggle-btn" style="background: none; border: 1px solid var(--border-color); color: var(--text-color); padding: 5px 10px; border-radius: 4px; cursor: pointer;">🌓 Theme</button>
+    </div>
 
     <div style="margin-bottom: 20px;">
         <label style="font-weight: bold; cursor: pointer;">
             <input type="checkbox" id="auto_mode_toggle"> Enable Auto-Mode
         </label>
-        <p style="font-size: 0.9em; color: #555;">Auto-Mode automatically rips when a disk is inserted and ejects when done.</p>
+        <p style="font-size: 0.9em; color: var(--text-muted);">Auto-Mode automatically rips when a disk is inserted and ejects when done.</p>
     </div>
 
     <div class="status" id="status_container">
