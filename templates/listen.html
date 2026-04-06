@@ -4,15 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/static/manifest.json">
+    <script src="/static/theme.js"></script>
     <title>Listen to {{ book_name }}</title>
     <style>
-        body { font-family: sans-serif; margin: 2rem; display: flex; flex-direction: column; align-items: center; }
-        h1 { color: #333; text-align: center; word-break: break-word; }
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --text-muted: #555555;
+            --border-color: #cccccc;
+            --border-light: #eeeeee;
+            --card-bg: #f9f9f9;
+            --header-bg: #e9ecef;
+            --header-hover: #dde2e6;
+            --cover-bg: #e0e0e0;
+            --cover-text: #888888;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --border-color: #444444;
+            --border-light: #333333;
+            --card-bg: #1e1e1e;
+            --header-bg: #2a2a2a;
+            --header-hover: #3a3a3a;
+            --cover-bg: #333333;
+            --cover-text: #777777;
+        }
+
+        body { font-family: sans-serif; margin: 2rem; display: flex; flex-direction: column; align-items: center; background-color: var(--bg-color); color: var(--text-color); }
+        h1 { color: var(--text-color); text-align: center; word-break: break-word; }
+        select { background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); }
         .player-container {
-            border: 1px solid #ccc;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 20px;
-            background: #f9f9f9;
+            background: var(--card-bg);
             width: 100%;
             max-width: 600px;
             display: flex;
@@ -34,12 +62,12 @@
             max-width: 300px;
             height: auto;
             aspect-ratio: 1;
-            background: #e0e0e0;
+            background: var(--cover-bg);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 5rem;
-            color: #888;
+            color: var(--cover-text);
             border-radius: 4px;
         }
         audio {
@@ -88,12 +116,12 @@
             align-items: center;
             justify-content: center;
             border-radius: 50%;
-            background: #e9ecef;
+            background: var(--header-bg);
             width: 40px;
             height: 40px;
         }
         .header-back-btn:hover {
-            background: #dde2e6;
+            background: var(--header-hover);
         }
         .header-title {
             flex: 1;
@@ -112,7 +140,7 @@
         <div class="header-container">
             <a href="/" class="header-back-btn" title="Back to Library">←</a>
             <h1 class="header-title">{{ book_name }}</h1>
-            <div style="width: 40px;"></div> <!-- Spacer for centering title -->
+            <button class="theme-toggle-btn" style="background: none; border: 1px solid var(--border-color); color: var(--text-color); border-radius: 4px; padding: 5px; cursor: pointer; white-space: nowrap;">🌓</button>
         </div>
 
         <img src="/cover/{{ book_name }}" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -131,14 +159,14 @@
             </div>
 
             <div class="playback-buttons" style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-                <button id="skipBackBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #333; padding: 10px;">↺ 15</button>
+                <button id="skipBackBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color); padding: 10px;">↺ 15</button>
                 <button id="playPauseBtn" style="background: #007bff; color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">▶</button>
-                <button id="skipForwardBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #333; padding: 10px;">15 ↻</button>
+                <button id="skipForwardBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color); padding: 10px;">15 ↻</button>
             </div>
 
             <div class="utility-buttons" style="display: flex; justify-content: space-around; align-items: center; gap: 10px;">
-                <button id="chaptersToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #555; display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">☰</span><span style="font-size: 0.7rem;">Chapters</span></button>
-                <button id="bookmarksToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #555; display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">🔖</span><span style="font-size: 0.7rem;">Bookmarks</span></button>
+                <button id="chaptersToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">☰</span><span style="font-size: 0.7rem;">Chapters</span></button>
+                <button id="bookmarksToggleBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); display: flex; flex-direction: column; align-items: center;"><span style="font-size: 1.5rem;">🔖</span><span style="font-size: 0.7rem;">Bookmarks</span></button>
             </div>
         </div>
 
@@ -166,22 +194,22 @@
             </div>
         </div>
 
-        <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="chaptersContainer">
+        <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none; background: var(--bg-color); padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="chaptersContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin: 0;">Chapters</h3>
-                <button id="closeChaptersBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer;">✕</button>
+                <button id="closeChaptersBtn" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-color);">✕</button>
             </div>
-            <ul id="chaptersList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; padding: 5px;">
+            <ul id="chaptersList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; padding: 5px;">
                 <!-- Chapters will be populated here -->
             </ul>
         </div>
 
-        <div class="bookmarks-container" style="width: 100%; margin-top: 10px; display: none; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="bookmarksContainer">
+        <div class="bookmarks-container" style="width: 100%; margin-top: 10px; display: none; background: var(--bg-color); padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="bookmarksContainer">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>Bookmarks</h3>
                 <button id="addBookmarkBtn" style="padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Add Bookmark</button>
             </div>
-            <ul id="bookmarksList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 5px;">
+            <ul id="bookmarksList" style="list-style: none; padding: 0; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;">
                 <!-- Bookmarks will be populated here -->
             </ul>
         </div>
