@@ -90,6 +90,12 @@
             align-items: center;
         }
 
+        @media (max-width: 768px) {
+            .admin-only {
+                display: none !important;
+            }
+        }
+
         @media (max-width: 360px) {
             body { margin: 1rem; }
             .header-controls {
@@ -111,7 +117,7 @@
     <h1>My Audiobooks</h1>
 
     <div class="header-controls">
-        <a href="/new" class="btn">New Audiobook</a>
+        <a href="/new" class="btn admin-only">New Audiobook</a>
 
         <form action="/" method="GET" class="sort-form">
             <label for="sort_by">Sort by:</label>
@@ -158,9 +164,9 @@
                     </div>
                     <div class="book-actions" style="flex-wrap: wrap;">
                         <a href="/listen/{{ book.filename }}" class="btn btn-edit btn-resume" data-filename="{{ book.filename }}" style="display: none; background-color: #ffc107; color: black; flex-basis: 100%; margin-bottom: 5px;" title="Resume Playback">Resume</a>
-                        <a href="/open/{{ book.filename }}" class="btn btn-edit" style="background-color: #17a2b8;" title="Open Dir">Dir</a>
-                        <a href="/metadata/{{ book.filename }}" class="btn btn-edit">Edit</a>
-                        <form action="/delete/{{ book.filename }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete {{ book.title }}?');" style="flex-basis: 100%;">
+                        <a href="/open/{{ book.filename }}" class="btn btn-edit admin-only" style="background-color: #17a2b8;" title="Open Dir">Dir</a>
+                        <a href="/metadata/{{ book.filename }}" class="btn btn-edit admin-only">Edit</a>
+                        <form action="/delete/{{ book.filename }}" method="POST" class="delete-form admin-only" onsubmit="return confirm('Are you sure you want to delete {{ book.title }}?');" style="flex-basis: 100%;">
                             <button type="submit" class="btn btn-delete">Delete</button>
                         </form>
                     </div>
