@@ -237,19 +237,44 @@
         const bookName = "{{ book_name }}";
         const durationKey = `audiobook_duration_${bookName}`;
         const bookmarksKey = `audiobook_bookmarks_${bookName}`;
+        let isPositionLoaded = false;
+        let pendingPosition = 0;
+
+        // Apply loaded position securely
+        function applyPosition(pos) {
+            if (pos > 0) {
+                if (audioPlayer.readyState >= 1) {
+                    audioPlayer.currentTime = pos;
+                } else {
+                    pendingPosition = pos;
+                }
+            }
+        }
 
         // Load saved position from API
         async function loadPosition() {
             try {
+                const localPos = parseFloat(localStorage.getItem(`audiobook_position_${bookName}`)) || 0;
+                applyPosition(localPos);
+
                 const response = await fetch(`/api/progress/${encodeURIComponent(bookName)}`);
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.position && data.position > 0) {
-                        audioPlayer.currentTime = data.position;
+                    const serverPos = data.position || 0;
+
+                    // Reconcile logic:
+                    // If server is ahead or vastly different (>60s difference), trust the server
+                    if (serverPos > 0 && (serverPos > localPos || Math.abs(serverPos - localPos) > 60)) {
+                        applyPosition(serverPos);
+                    } else if (localPos > 0 && localPos > serverPos) {
+                        // local is slightly ahead, sync it up to server immediately
+                        savePosition(localPos);
                     }
                 }
             } catch (error) {
                 console.error("Error loading position:", error);
+            } finally {
+                isPositionLoaded = true;
             }
         }
 
@@ -257,11 +282,14 @@
 
         // Save position periodically and on pause
         async function savePosition(position) {
+            if (!isPositionLoaded) return; // Prevent overwriting with 0 on early play
             try {
+                localStorage.setItem(`audiobook_position_${bookName}`, position);
                 await fetch(`/api/progress/${encodeURIComponent(bookName)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ position: position })
+                    body: JSON.stringify({ position: position }),
+                    keepalive: true
                 });
             } catch (error) {
                 console.error("Error saving position:", error);
@@ -270,7 +298,7 @@
 
         function scheduleSave() {
             setTimeout(() => {
-                if (!audioPlayer.paused) {
+                if (!audioPlayer.paused && isPositionLoaded) {
                     savePosition(audioPlayer.currentTime);
                 }
                 scheduleSave();
@@ -278,6 +306,16 @@
         }
 
         scheduleSave();
+
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            if (pendingPosition > 0) {
+                audioPlayer.currentTime = pendingPosition;
+                pendingPosition = 0;
+            }
+            if (!isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
+                localStorage.setItem(durationKey, audioPlayer.duration);
+            }
+        });
 
         audioPlayer.addEventListener('pause', () => {
             savePosition(audioPlayer.currentTime);
@@ -288,12 +326,6 @@
             savePosition(0);
         });
 
-        // Save duration
-        audioPlayer.addEventListener('loadedmetadata', () => {
-            if (!isNaN(audioPlayer.duration) && audioPlayer.duration !== Infinity) {
-                localStorage.setItem(durationKey, audioPlayer.duration);
-            }
-        });
 
         // Playback Speed
         const playbackSpeedSelect = document.getElementById('playbackSpeed');
@@ -465,6 +497,7 @@
                     navigator.mediaSession.setActionHandler('stop', () => {
                         audioPlayer.pause();
                         audioPlayer.currentTime = 0;
+                        savePosition(0);
                     });
 
                 } catch (error) {
@@ -495,11 +528,14 @@
         audioPlayer.addEventListener('play', () => {
             playPauseBtn.textContent = '⏸';
             updatePositionState();
+            savePosition(audioPlayer.currentTime);
         });
 
         audioPlayer.addEventListener('pause', () => {
             playPauseBtn.textContent = '▶';
             updatePositionState();
+            // Ensure we save immediately on pause for instant reload/sync
+            savePosition(audioPlayer.currentTime);
         });
 
         audioPlayer.addEventListener('ratechange', () => {
