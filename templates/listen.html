@@ -525,10 +525,42 @@
             // We'll update it when paused/played and on seek to be efficient.
         });
 
+        // Wake Lock API logic
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock was released');
+                    });
+                    console.log('Wake Lock is active');
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                });
+            }
+        }
+
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && !audioPlayer.paused) {
+                await requestWakeLock();
+            }
+        });
+
         audioPlayer.addEventListener('play', () => {
             playPauseBtn.textContent = '⏸';
             updatePositionState();
             savePosition(audioPlayer.currentTime);
+            requestWakeLock();
         });
 
         audioPlayer.addEventListener('pause', () => {
@@ -536,6 +568,11 @@
             updatePositionState();
             // Ensure we save immediately on pause for instant reload/sync
             savePosition(audioPlayer.currentTime);
+            releaseWakeLock();
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            releaseWakeLock();
         });
 
         audioPlayer.addEventListener('ratechange', () => {
