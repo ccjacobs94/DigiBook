@@ -197,6 +197,12 @@
                 </select>
                 <span id="sleepTimerDisplay" style="font-size: 0.8rem; color: #666; min-height: 1.2em;"></span>
             </div>
+
+            <div class="control-group" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                <label for="wakeLockToggle" title="Keep the screen on to prevent the browser from sleeping">Keep Awake</label>
+                <input type="checkbox" id="wakeLockToggle" title="Keep screen on">
+                <span style="font-size: 0.8rem; color: #666; min-height: 1.2em;" id="wakeLockStatus"></span>
+            </div>
         </div>
 
         <div class="chapters-container" style="width: 100%; margin-top: 10px; display: none; background: var(--bg-color); padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" id="chaptersContainer">
@@ -525,10 +531,66 @@
             // We'll update it when paused/played and on seek to be efficient.
         });
 
+        // Wake Lock API logic
+        let wakeLock = null;
+        const wakeLockToggle = document.getElementById('wakeLockToggle');
+        const wakeLockStatus = document.getElementById('wakeLockStatus');
+
+        // Load toggle state
+        wakeLockToggle.checked = localStorage.getItem('wakeLockEnabled') === 'true';
+
+        // Check if supported
+        if (!('wakeLock' in navigator)) {
+            wakeLockToggle.disabled = true;
+            wakeLockStatus.textContent = "Unsupported";
+        }
+
+        wakeLockToggle.addEventListener('change', () => {
+            localStorage.setItem('wakeLockEnabled', wakeLockToggle.checked);
+            if (wakeLockToggle.checked && !audioPlayer.paused) {
+                requestWakeLock();
+            } else {
+                releaseWakeLock();
+            }
+        });
+
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator && wakeLockToggle.checked) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock was released');
+                        wakeLockStatus.textContent = "";
+                    });
+                    console.log('Wake Lock is active');
+                    wakeLockStatus.textContent = "Active";
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                    wakeLockStatus.textContent = "Error";
+                }
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                    wakeLockStatus.textContent = "";
+                });
+            }
+        }
+
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && !audioPlayer.paused && wakeLockToggle.checked) {
+                await requestWakeLock();
+            }
+        });
+
         audioPlayer.addEventListener('play', () => {
             playPauseBtn.textContent = '⏸';
             updatePositionState();
             savePosition(audioPlayer.currentTime);
+            requestWakeLock();
         });
 
         audioPlayer.addEventListener('pause', () => {
@@ -536,6 +598,11 @@
             updatePositionState();
             // Ensure we save immediately on pause for instant reload/sync
             savePosition(audioPlayer.currentTime);
+            releaseWakeLock();
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            releaseWakeLock();
         });
 
         audioPlayer.addEventListener('ratechange', () => {
