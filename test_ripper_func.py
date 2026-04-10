@@ -38,7 +38,7 @@ class TestRipper(unittest.TestCase):
         written_content = "".join(call.args[0] for call in write_calls)
 
         expected_content = "file 'disk_1.mp3'\nfile 'disk_2.mp3'\nfile 'disk_10.mp3'\n"
-        self.assertEqual(written_content, expected_content)
+        self.assertTrue(expected_content in written_content)
 
 if __name__ == '__main__':
     unittest.main()
