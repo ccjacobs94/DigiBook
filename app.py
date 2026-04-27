@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory, Response
 import os
 import shutil
 import subprocess
 import sys
 import tkinter as tk
 import sqlite3
+import json
 from tkinter import filedialog
 import requests
 from werkzeug.utils import secure_filename
@@ -243,7 +244,6 @@ def get_cover(book_name):
                 if apic_tags:
                     cover_data = apic_tags[0].data
                     mime_type = apic_tags[0].mime
-                    from flask import Response
                     return Response(cover_data, mimetype=mime_type)
             elif book_name.endswith('.m4b'):
                 audio = MP4(file_path)
@@ -251,7 +251,6 @@ def get_cover(book_name):
                 if covr_tags:
                     cover_data = covr_tags[0]
                     mime_type = 'image/jpeg' if covr_tags[0].imageformat == MP4Cover.FORMAT_JPEG else 'image/png'
-                    from flask import Response
                     return Response(cover_data, mimetype=mime_type)
         except Exception as e:
             print(f"Error reading cover from {book_name}: {e}")
@@ -281,7 +280,6 @@ def get_chapters(book_name):
 
         data = result.stdout
         if data:
-            import json
             parsed = json.loads(data)
             for chap in parsed.get('chapters', []):
                 start_time = float(chap.get('start_time', 0))
