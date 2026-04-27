@@ -259,3 +259,17 @@ def test_open_book_sys_platform(client, monkeypatch):
     monkeypatch.setattr(sys, "platform", "darwin")
     client.get('/open/sys_test.mp3')
     app.subprocess.run.assert_called_with(["open", "-R", os.path.abspath(test_file_path)])
+
+def test_listen_book_exists(client):
+    book_name = 'test_book.mp3'
+    with open(os.path.join(app.LIBRARY_DIR, book_name), 'w') as f:
+        f.write('mock content')
+
+    rv = client.get(f'/listen/{book_name}')
+    assert rv.status_code == 200
+    assert b'test_book.mp3' in rv.data
+
+def test_listen_book_not_exists(client):
+    rv = client.get('/listen/non_existent.mp3')
+    assert rv.status_code == 302
+    assert rv.headers['Location'] == '/'
