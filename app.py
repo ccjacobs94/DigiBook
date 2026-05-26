@@ -182,6 +182,119 @@ def get_book_metadata(filename, file_path):
 
     return {'title': title, 'author': author, 'year': year}
 
+
+def get_detailed_metadata(file_path):
+    is_m4b = file_path.endswith('.m4b')
+    metadata = {
+        'title': '',
+        'author': '',
+        'narrator': '',
+        'year': '',
+        'description': '',
+        'isbn': '',
+        'has_tags': False
+    }
+
+    try:
+        if is_m4b:
+            audio = MP4(file_path)
+            existing_tags = audio.tags if audio.tags else {}
+
+            metadata['title'] = str(existing_tags.get('\xa9nam', [''])[0])
+            metadata['author'] = str(existing_tags.get('\xa9ART', [''])[0])
+            metadata['narrator'] = str(existing_tags.get('\xa9nrt', [''])[0])
+            metadata['year'] = str(existing_tags.get('\xa9day', [''])[0])
+            metadata['description'] = str(existing_tags.get('desc', [''])[0])
+
+            isbn_raw = existing_tags.get('----:com.apple.iTunes:ISBN', [])
+            metadata['isbn'] = isbn_raw[0].decode('utf-8') if isbn_raw else ''
+        else:
+            audio = MP3(file_path)
+            existing_tags = audio.tags if audio.tags else {}
+
+            metadata['title'] = str(existing_tags.getall('TIT2')[0].text[0]) if existing_tags.getall('TIT2') else ''
+            metadata['author'] = str(existing_tags.getall('TPE1')[0].text[0]) if existing_tags.getall('TPE1') else ''
+            metadata['narrator'] = str(existing_tags.getall('TPE2')[0].text[0]) if existing_tags.getall('TPE2') else ''
+            metadata['year'] = str(existing_tags.getall('TDRC')[0].text[0]) if existing_tags.getall('TDRC') else ''
+            metadata['description'] = str(existing_tags.getall('COMM:Description:eng')[0].text[0]) if existing_tags.getall('COMM:Description:eng') else ''
+            metadata['isbn'] = str(existing_tags.getall('TXXX:ISBN')[0].text[0]) if existing_tags.getall('TXXX:ISBN') else ''
+
+        metadata['has_tags'] = any(metadata[k] for k in ['title', 'author', 'narrator', 'year', 'description', 'isbn'])
+
+    except Exception as e:
+        print(f"Error reading detailed metadata: {e}")
+
+    return metadata
+
+
+def update_book_metadata(file_path, metadata):
+    is_m4b = file_path.endswith('.m4b')
+    title = metadata.get('title')
+    author = metadata.get('author')
+    narrator = metadata.get('narrator')
+    year = metadata.get('year')
+    cover_url = metadata.get('cover_url')
+    description = metadata.get('description')
+    isbn = metadata.get('isbn')
+
+    if is_m4b:
+        audio = MP4(file_path)
+        if audio.tags is None:
+            audio.add_tags()
+
+        if title: audio.tags['\xa9nam'] = [title]
+        if author: audio.tags['\xa9ART'] = [author]
+        if narrator: audio.tags['\xa9nrt'] = [narrator]
+        if year: audio.tags['\xa9day'] = [year]
+        if description: audio.tags['desc'] = [description]
+        if isbn: audio.tags['----:com.apple.iTunes:ISBN'] = [isbn.encode('utf-8')]
+
+        if cover_url:
+            try:
+                resp = requests.get(cover_url, timeout=5)
+                resp.raise_for_status()
+                image_format = MP4Cover.FORMAT_JPEG if 'jpeg' in resp.headers.get('Content-Type', '').lower() or 'jpg' in cover_url.lower() else MP4Cover.FORMAT_PNG
+                audio.tags['covr'] = [MP4Cover(resp.content, imageformat=image_format)]
+            except Exception as e:
+                print(f"Error fetching cover image: {e}")
+
+        audio.save()
+    else:
+        try:
+            audio = MP3(file_path, ID3=ID3)
+        except MutagenError:
+            audio = MP3(file_path)
+            audio.add_tags()
+
+        if title:
+            audio.tags.add(TIT2(encoding=3, text=title))
+        if author:
+            audio.tags.add(TPE1(encoding=3, text=author))
+        if narrator:
+            audio.tags.add(TPE2(encoding=3, text=narrator))
+        if year:
+            audio.tags.add(TDRC(encoding=3, text=year))
+        if description:
+            audio.tags.add(COMM(encoding=3, lang='eng', desc='Description', text=[description]))
+        if isbn:
+            audio.tags.add(TXXX(encoding=3, desc='ISBN', text=[isbn]))
+
+        if cover_url:
+            try:
+                resp = requests.get(cover_url, timeout=5)
+                resp.raise_for_status()
+                audio.tags.add(APIC(
+                    encoding=3,
+                    mime='image/jpeg',
+                    type=3,
+                    desc='Cover',
+                    data=resp.content
+                ))
+            except Exception as e:
+                print(f"Error fetching cover image: {e}")
+
+        audio.save()
+
 @app.route('/api/metadata/<book_name>')
 def api_get_metadata(book_name):
     # secure_filename removes spaces, so we just use basename to prevent directory traversal
@@ -519,112 +632,27 @@ def edit_metadata(book_name):
     if not book_name.endswith('.mp3') and not book_name.endswith('.m4b'):
         book_name += '.mp3'
 
-    output_file = os.path.join(LIBRARY_DIR, book_name)
-    is_m4b = book_name.endswith('.m4b')
+    file_path = os.path.join(LIBRARY_DIR, book_name)
 
-    if not os.path.exists(output_file):
+    if not os.path.exists(file_path):
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        title = request.form.get('title', '')
-        author = request.form.get('author', '')
-        narrator = request.form.get('narrator', '')
-        year = request.form.get('year', '')
-        cover_url = request.form.get('cover_url', '')
-        description = request.form.get('description', '')
-        isbn = request.form.get('isbn', '')
-
-        if is_m4b:
-            audio = MP4(output_file)
-            if audio.tags is None:
-                audio.add_tags()
-
-            if title: audio.tags['\xa9nam'] = [title]
-            if author: audio.tags['\xa9ART'] = [author]
-            if narrator: audio.tags['\xa9nrt'] = [narrator] # Custom for narrator might vary, standard MP4 is \xa9nrt or just artist
-            if year: audio.tags['\xa9day'] = [year]
-            if description: audio.tags['desc'] = [description]
-            if isbn: audio.tags['----:com.apple.iTunes:ISBN'] = [isbn.encode('utf-8')]
-
-            if cover_url:
-                try:
-                    resp = requests.get(cover_url, timeout=5)
-                    resp.raise_for_status()
-                    image_format = MP4Cover.FORMAT_JPEG if 'jpeg' in resp.headers.get('Content-Type', '').lower() or 'jpg' in cover_url.lower() else MP4Cover.FORMAT_PNG
-                    audio.tags['covr'] = [MP4Cover(resp.content, imageformat=image_format)]
-                except Exception as e:
-                    print(f"Error fetching cover image: {e}")
-
-            audio.save()
-        else:
-            try:
-                audio = MP3(output_file, ID3=ID3)
-            except MutagenError:
-                audio = MP3(output_file)
-                audio.add_tags()
-
-            if title:
-                audio.tags.add(TIT2(encoding=3, text=title))
-            if author:
-                audio.tags.add(TPE1(encoding=3, text=author))
-            if narrator:
-                audio.tags.add(TPE2(encoding=3, text=narrator))
-            if year:
-                audio.tags.add(TDRC(encoding=3, text=year))
-            if description:
-                audio.tags.add(COMM(encoding=3, lang='eng', desc='Description', text=[description]))
-            if isbn:
-                audio.tags.add(TXXX(encoding=3, desc='ISBN', text=[isbn]))
-
-            if cover_url:
-                try:
-                    resp = requests.get(cover_url, timeout=5)
-                    resp.raise_for_status()
-                    audio.tags.add(APIC(
-                        encoding=3,
-                        mime='image/jpeg',
-                        type=3,
-                        desc='Cover',
-                        data=resp.content
-                    ))
-                except Exception as e:
-                    print(f"Error fetching cover image: {e}")
-
-            audio.save()
-
+        metadata_to_save = {
+            'title': request.form.get('title', ''),
+            'author': request.form.get('author', ''),
+            'narrator': request.form.get('narrator', ''),
+            'year': request.form.get('year', ''),
+            'cover_url': request.form.get('cover_url', ''),
+            'description': request.form.get('description', ''),
+            'isbn': request.form.get('isbn', '')
+        }
+        update_book_metadata(file_path, metadata_to_save)
         return redirect(url_for('index'))
 
-    # Attempt to load existing metadata
-    try:
-        if is_m4b:
-            audio = MP4(output_file)
-            existing_tags = audio.tags if audio.tags else {}
-
-            title = existing_tags.get('\xa9nam', [''])[0]
-            author = existing_tags.get('\xa9ART', [''])[0]
-            narrator = existing_tags.get('\xa9nrt', [''])[0]
-            year = existing_tags.get('\xa9day', [''])[0]
-            description = existing_tags.get('desc', [''])[0]
-
-            isbn_raw = existing_tags.get('----:com.apple.iTunes:ISBN', [])
-            isbn = isbn_raw[0].decode('utf-8') if isbn_raw else ''
-        else:
-            audio = MP3(output_file)
-            existing_tags = audio.tags if audio.tags else {}
-
-            title = existing_tags.getall('TIT2')[0].text[0] if existing_tags.getall('TIT2') else ''
-            author = existing_tags.getall('TPE1')[0].text[0] if existing_tags.getall('TPE1') else ''
-            narrator = existing_tags.getall('TPE2')[0].text[0] if existing_tags.getall('TPE2') else ''
-            year = existing_tags.getall('TDRC')[0].text[0] if existing_tags.getall('TDRC') else ''
-            description = existing_tags.getall('COMM:Description:eng')[0].text[0] if existing_tags.getall('COMM:Description:eng') else ''
-            isbn = existing_tags.getall('TXXX:ISBN')[0].text[0] if existing_tags.getall('TXXX:ISBN') else ''
-
-        has_tags = bool(title or author or narrator or year or description or isbn)
-
-    except Exception as e:
-        print(f"Error reading existing tags: {e}")
-        has_tags = False
-        title = author = narrator = year = description = isbn = ''
+    # Load existing metadata
+    metadata = get_detailed_metadata(file_path)
+    has_tags = metadata.pop('has_tags', False)
 
     original_title = request.args.get('original_title', book_name.replace('.mp3', '').replace('.m4b', ''))
 
@@ -634,20 +662,13 @@ def edit_metadata(book_name):
 
     # Apply defaults from search if current fields are empty or no tags exist
     if not has_tags:
-        if not author: author = session_data.get('author', '')
-        if not year: year = session_data.get('year', '')
-        if not description: description = session_data.get('description', '')
-        if not isbn: isbn = session_data.get('isbn', '')
+        if not metadata['author']: metadata['author'] = session_data.get('author', '')
+        if not metadata['year']: metadata['year'] = session_data.get('year', '')
+        if not metadata['description']: metadata['description'] = session_data.get('description', '')
+        if not metadata['isbn']: metadata['isbn'] = session_data.get('isbn', '')
 
-    metadata = {
-        'title': title,
-        'author': author,
-        'year': year,
-        'narrator': narrator,
-        'description': description,
-        'isbn': isbn,
-        'cover_url': session_data.get('cover_url', '') # Prefill from session if available
-    }
+    # Prefill cover URL from session if available
+    metadata['cover_url'] = session_data.get('cover_url', '')
 
     return render_template('metadata.html', book_name=book_name, metadata=metadata, original_title=original_title, has_tags=has_tags)
 
