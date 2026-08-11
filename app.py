@@ -381,6 +381,7 @@ def get_audio(book_name):
 
 @app.route('/api/chapters/<book_name>')
 def get_chapters(book_name):
+    book_name = secure_filename(book_name)
     file_path = os.path.join(LIBRARY_DIR, book_name)
     if not os.path.exists(file_path):
         return jsonify([])
